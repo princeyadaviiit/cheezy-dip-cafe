@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -12,10 +12,11 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  RefreshCw,
+  BarChart3,
   Power,
   RotateCw,
   ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import {
   getAllAdminOrders,
@@ -28,12 +29,13 @@ import {
   getStaffList,
 } from "@/services/admin-service";
 import { markOrderPaidAtCounter } from "@/services/kitchen-service";
+import { getSalesReport, type SalesReportSummary } from "@/services/report-service";
 import { type OrderRecord } from "@/lib/orders/order-store";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"orders" | "menu" | "tables" | "settings" | "staff">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "reports" | "menu" | "tables" | "settings" | "staff">("orders");
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [menuItems, setMenuItems] = useState<
     Array<{ id: string; name: string; priceMinor: number; effectiveAvailable: boolean }>
@@ -55,9 +57,10 @@ export default function AdminPage() {
   const [staffList, setStaffList] = useState<
     Array<{ id: string; name: string; phone: string; role: string; isActive: boolean }>
   >([]);
+  const [salesReport, setSalesReport] = useState<SalesReportSummary | null>(null);
+  const [reportTimeframe, setReportTimeframe] = useState<"today" | "week" | "month">("today");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
   const [rotatingTableId, setRotatingTableId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,12 +68,13 @@ export default function AdminPage() {
 
     const fetchData = async () => {
       try {
-        const [ords, menu, sett, tbls, staff] = await Promise.all([
+        const [ords, menu, sett, tbls, staff, report] = await Promise.all([
           getAllAdminOrders(),
           getAdminMenuCatalog(),
           getCafeSettings(),
           getTablesList(),
           getStaffList(),
+          getSalesReport(reportTimeframe),
         ]);
         if (active) {
           setOrders(ords);
@@ -78,7 +82,7 @@ export default function AdminPage() {
           setCafeSettings(sett);
           setTables(tbls);
           setStaffList(staff);
-          setLoading(false);
+          setSalesReport(report);
         }
       } catch {
         // Ignored
@@ -92,7 +96,7 @@ export default function AdminPage() {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [reportTimeframe]);
 
   // Handle menu toggle
   const handleToggleMenu = async (itemId: string, current: boolean) => {
@@ -181,6 +185,7 @@ export default function AdminPage() {
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 text-xs font-bold">
         {[
           { id: "orders", label: "Orders", icon: ShoppingBag, count: orders.length },
+          { id: "reports", label: "Sales & Reports", icon: BarChart3 },
           { id: "menu", label: "Menu", icon: Utensils, count: menuItems.length },
           { id: "tables", label: "Tables & QR", icon: QrCode, count: tables.length },
           { id: "settings", label: "Settings", icon: Settings },
@@ -270,7 +275,94 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 2: MENU MANAGEMENT */}
+      {/* TAB 2: REPORTS */}
+      {activeTab === "reports" && salesReport && (
+        <div className="space-y-3 pt-1">
+          {/* Timeframe selector */}
+          <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-xl border border-neutral-800 text-xs font-bold">
+            {(["today", "week", "month"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setReportTimeframe(t)}
+                className={`flex-1 py-1.5 rounded-lg capitalize transition-colors min-h-[38px] ${
+                  reportTimeframe === t
+                    ? "bg-[var(--accent)] text-black font-extrabold"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                {t === "today" ? "Today" : t === "week" ? "This Week" : "This Month"}
+              </button>
+            ))}
+          </div>
+
+          {/* Metric Cards */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-3.5 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-1">
+              <span className="text-[11px] text-neutral-400 font-semibold">Gross Revenue</span>
+              <p className="text-xl font-black text-amber-400">
+                ₹{Math.round(salesReport.grossSalesMinor / 100)}
+              </p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-1">
+              <span className="text-[11px] text-neutral-400 font-semibold">Total Orders</span>
+              <p className="text-xl font-black text-white">
+                {salesReport.totalOrdersCount}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-neutral-900 border border-neutral-800 flex justify-between items-center text-xs">
+            <span className="text-neutral-400">Average Order Value (AOV)</span>
+            <span className="font-extrabold text-white text-sm">
+              ₹{Math.round(salesReport.averageOrderValueMinor / 100)}
+            </span>
+          </div>
+
+          {/* Channel Split (Dine-in vs Delivery) */}
+          <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl space-y-2 text-xs">
+            <h4 className="font-bold text-white text-xs pb-1 border-b border-neutral-800 flex items-center justify-between">
+              <span>Channel Split</span>
+              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+            </h4>
+            <div className="flex justify-between items-center text-neutral-300">
+              <span>🍽️ Dine-In ({salesReport.dineIn.ordersCount} orders)</span>
+              <span className="font-bold text-white">₹{Math.round(salesReport.dineIn.revenueMinor / 100)}</span>
+            </div>
+            <div className="flex justify-between items-center text-neutral-300">
+              <span>🛵 Delivery ({salesReport.delivery.ordersCount} orders)</span>
+              <span className="font-bold text-white">₹{Math.round(salesReport.delivery.revenueMinor / 100)}</span>
+            </div>
+          </div>
+
+          {/* Top Selling Dishes */}
+          <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl space-y-2.5 text-xs">
+            <h4 className="font-bold text-white text-xs pb-1 border-b border-neutral-800">
+              Top Selling Dishes
+            </h4>
+            {salesReport.topDishes.length > 0 ? (
+              salesReport.topDishes.map((dish, idx) => (
+                <div key={idx} className="flex justify-between items-center text-neutral-300">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-neutral-800 text-[10px] font-bold text-amber-400 flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold text-white truncate">{dish.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-neutral-400">{dish.quantity} sold</span>
+                    <span className="font-bold text-amber-400">₹{Math.round(dish.revenueMinor / 100)}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-neutral-500 text-center py-2">No completed orders yet in this timeframe.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: MENU MANAGEMENT */}
       {activeTab === "menu" && (
         <div className="space-y-3 pt-1">
           <div className="relative">
@@ -322,7 +414,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 3: TABLES & QR */}
+      {/* TAB 4: TABLES & QR */}
       {activeTab === "tables" && (
         <div className="space-y-3 pt-1">
           <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-xl text-xs text-amber-200">
@@ -373,7 +465,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 4: SETTINGS */}
+      {/* TAB 5: SETTINGS */}
       {activeTab === "settings" && (
         <div className="space-y-3 pt-1">
           <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl space-y-4">
@@ -428,7 +520,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 5: STAFF */}
+      {/* TAB 6: STAFF */}
       {activeTab === "staff" && (
         <div className="space-y-3 pt-1">
           <div className="p-3 bg-neutral-900/60 border border-neutral-800 rounded-xl text-xs text-neutral-400">

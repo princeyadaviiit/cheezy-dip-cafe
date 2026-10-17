@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft, Trash2, Plus, Minus, Utensils, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, Minus, Utensils, ShoppingBag, Tag, CheckCircle2, AlertTriangle, WifiOff } from "lucide-react";
 import { useCart } from "@/lib/cart/cart-context";
+import { validateCoupon } from "@/lib/coupons/coupon-service";
 import { Button } from "@/components/ui/button";
 
 export default function CartPage() {
@@ -18,6 +18,50 @@ export default function CartPage() {
     tableLabel,
     orderType,
   } = useCart();
+
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountMinor: number } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Monitor network online/offline state
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const handleApplyCoupon = () => {
+    setCouponError(null);
+    if (!couponInput.trim()) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+
+    const result = validateCoupon(couponInput, subtotalMinor, "current_customer");
+    if (!result.isValid) {
+      setCouponError(result.error || "Invalid coupon code");
+      setAppliedCoupon(null);
+    } else {
+      setAppliedCoupon({
+        code: result.coupon!.code,
+        discountMinor: result.discountMinor,
+      });
+      setCouponInput("");
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+  };
 
   if (items.length === 0) {
     return (
@@ -41,10 +85,19 @@ export default function CartPage() {
   }
 
   const deliveryFeeMinor = orderType === "dine_in" ? 0 : 3000;
-  const grandTotalMinor = subtotalMinor + deliveryFeeMinor;
+  const discountMinor = appliedCoupon ? appliedCoupon.discountMinor : 0;
+  const grandTotalMinor = Math.max(0, subtotalMinor - discountMinor) + deliveryFeeMinor;
 
   return (
     <div className="space-y-4 pb-12">
+      {/* Offline Alert Banner */}
+      {!isOnline && (
+        <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-xs text-red-200 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-red-400 shrink-0" />
+          <span>You are offline. Your cart is saved locally on your device.</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -184,6 +237,60 @@ export default function CartPage() {
         <Plus className="w-3.5 h-3.5" /> Add more items
       </Link>
 
+      {/* Coupon Code Section */}
+      <div className="p-3.5 bg-neutral-900/80 rounded-2xl border border-[var(--border)] space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-white flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-amber-400" /> Offers & Coupons
+          </span>
+          <span className="text-[11px] text-amber-400">Try CHEESE20 or DIPFIRST</span>
+        </div>
+
+        {appliedCoupon ? (
+          <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div>
+                <p className="font-bold text-emerald-300 uppercase tracking-wider">{appliedCoupon.code} Applied</p>
+                <p className="text-[11px] text-emerald-200">You saved ₹{Math.round(appliedCoupon.discountMinor / 100)} on this order!</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemoveCoupon}
+              className="text-xs font-bold text-red-400 hover:text-red-300 min-h-[44px] px-2 flex items-center"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Enter coupon code"
+                value={couponInput}
+                onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                className="flex-1 px-3 py-2 text-xs bg-neutral-800 border border-[var(--border)] rounded-xl text-white uppercase placeholder:normal-case placeholder-neutral-500 focus:outline-none focus:border-[var(--accent)] min-h-[44px]"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleApplyCoupon}
+                className="font-bold text-xs min-h-[44px] px-4"
+              >
+                Apply
+              </Button>
+            </div>
+            {couponError && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1 pl-1">
+                <AlertTriangle className="w-3 h-3" /> {couponError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Bill Breakdown */}
       <div className="p-4 bg-neutral-900/80 rounded-2xl border border-[var(--border)] space-y-2 text-xs">
         <h4 className="font-bold text-white text-sm pb-1 border-b border-neutral-800">
@@ -193,6 +300,12 @@ export default function CartPage() {
           <span>Item Total ({totalCount} items)</span>
           <span>₹{Math.round(subtotalMinor / 100)}</span>
         </div>
+        {appliedCoupon && (
+          <div className="flex justify-between text-emerald-400 font-semibold">
+            <span>Coupon Discount ({appliedCoupon.code})</span>
+            <span>- ₹{Math.round(appliedCoupon.discountMinor / 100)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-neutral-300">
           <span>Delivery Partner Fee</span>
           <span>{orderType === "dine_in" ? "FREE (Dine-in)" : "₹30"}</span>
