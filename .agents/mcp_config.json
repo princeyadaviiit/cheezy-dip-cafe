@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "rea": {
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "npx",
+        "--no-install",
+        "rea",
+        "mcp"
+      ]
+    }
+  }
+}

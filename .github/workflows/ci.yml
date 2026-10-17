@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit & Integration Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_mock_key"
+          CLERK_SECRET_KEY: "sk_test_mock_key"
+          NEXT_PUBLIC_SUPABASE_URL: "https://mock.supabase.co"
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "mock_anon_key"
+          SUPABASE_SERVICE_ROLE_KEY: "mock_service_key"
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: "rzp_test_mock"
+          RAZORPAY_KEY_SECRET: "mock_secret"
+          TABLE_COOKIE_SECRET: "mock_cookie_secret_at_least_32_bytes_long"
