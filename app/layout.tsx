@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -28,16 +29,22 @@ export const metadata: Metadata = {
   description: "Mobile-first cafe ordering for dine-in and delivery. Melting cheese burgers, crispy loaded fries, authentic momos, pizzas, and shakes.",
 };
 
+const clerkPublishableKey =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  "pk_test_Y2hlZXp5LWRpcC1jYWZlLmNsZXJrLmFjY291bnRzLmRldiQ";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${bricolage.variable} ${figtree.variable}`}>
-      <body className="antialiased min-h-screen bg-[var(--bg)] text-[var(--text)]">
-        {children}
-      </body>
-    </html>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
+      <html lang="en" className={`${bricolage.variable} ${figtree.variable}`}>
+        <body className="antialiased min-h-screen bg-[var(--bg)] text-[var(--text)]">
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
