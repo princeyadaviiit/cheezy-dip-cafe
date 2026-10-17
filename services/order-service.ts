@@ -4,7 +4,14 @@ import { z } from "zod";
 import { getAuthSession, requireCustomerAuth } from "@/lib/auth/server";
 import { getTableContext } from "@/lib/auth/table-cookie";
 import { calculateOrderPricing } from "@/lib/orders/pricing";
-import { type OrderStatus } from "@/components/ui/status-badge";
+import {
+  ORDERS_STORE,
+  IDEMPOTENCY_STORE,
+  getNextOrderNumber,
+  type OrderRecord,
+} from "@/lib/orders/order-store";
+
+export type { OrderRecord };
 
 // Order Creation Schema
 export const PlaceOrderSchema = z.object({
@@ -37,43 +44,6 @@ export const PlaceOrderSchema = z.object({
 
 export type PlaceOrderInput = z.infer<typeof PlaceOrderSchema>;
 
-export interface OrderRecord {
-  id: string;
-  orderNumber: string;
-  customerClerkId: string;
-  contactPhone: string;
-  orderType: "dine_in" | "delivery";
-  orderStatus: OrderStatus;
-  paymentMethod: "pay_at_counter" | "razorpay";
-  paymentStatus: "pending" | "paid" | "failed" | "refunded";
-  tableId?: string;
-  tableLabel?: string;
-  deliveryAddressSnapshot?: Record<string, unknown>;
-  customerNote?: string;
-  subtotalMinor: number;
-  discountMinor: number;
-  deliveryFeeMinor: number;
-  taxMinor: number;
-  totalMinor: number;
-  couponCode?: string;
-  idempotencyKey: string;
-  items: Array<{
-    menuItemId: string;
-    nameSnapshot: string;
-    unitPriceMinor: number;
-    quantity: number;
-    modifiersSnapshot: { label: string; priceDeltaMinor: number }[];
-    lineTotalMinor: number;
-    note?: string;
-  }>;
-  placedAt: string;
-}
-
-// In-memory / simulated database store for development and testing
-const ORDERS_DB: Map<string, OrderRecord> = new Map();
-const IDEMPOTENCY_STORE: Map<string, string> = new Map(); // `customerClerkId:idempotencyKey` -> orderId
-let orderSequence = 100;
-
 export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord> {
   const user = await requireCustomerAuth();
   const input = PlaceOrderSchema.parse(rawInput);
@@ -82,7 +52,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
   const idempotencyKeyCompound = `${user.userId}:${input.idempotencyKey}`;
   const existingOrderId = IDEMPOTENCY_STORE.get(idempotencyKeyCompound);
   if (existingOrderId) {
-    const existingOrder = ORDERS_DB.get(existingOrderId);
+    const existingOrder = ORDERS_STORE.get(existingOrderId);
     if (existingOrder) {
       return existingOrder;
     }
@@ -124,9 +94,9 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
   });
 
   // 4. Generate Order Record
-  orderSequence += 1;
-  const orderNumber = `CD-${orderSequence}`;
+  const orderNumber = getNextOrderNumber();
   const orderId = `ord_${Math.random().toString(36).substring(2, 10)}`;
+  const now = new Date().toISOString();
 
   const orderRecord: OrderRecord = {
     id: orderId,
@@ -149,10 +119,11 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
     couponCode: input.couponCode,
     idempotencyKey: input.idempotencyKey,
     items: pricing.items,
-    placedAt: new Date().toISOString(),
+    placedAt: now,
+    updatedAt: now,
   };
 
-  ORDERS_DB.set(orderId, orderRecord);
+  ORDERS_STORE.set(orderId, orderRecord);
   IDEMPOTENCY_STORE.set(idempotencyKeyCompound, orderId);
 
   return orderRecord;
@@ -160,7 +131,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
 
 export async function getOrderById(orderId: string): Promise<OrderRecord | null> {
   const session = await getAuthSession();
-  const order = ORDERS_DB.get(orderId);
+  const order = ORDERS_STORE.get(orderId);
   if (!order) return null;
 
   // Authorization: Customer sees only their own order; staff sees all
@@ -180,7 +151,7 @@ export async function getOrderById(orderId: string): Promise<OrderRecord | null>
 
 export async function getCustomerOrders(): Promise<OrderRecord[]> {
   const user = await requireCustomerAuth();
-  return Array.from(ORDERS_DB.values()).filter(
+  return Array.from(ORDERS_STORE.values()).filter(
     (order) => order.customerClerkId === user.userId
   );
 }
