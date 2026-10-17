@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { CartProvider } from "@/lib/cart/cart-context";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -42,7 +43,9 @@ export default function RootLayout({
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <html lang="en" className={`${bricolage.variable} ${figtree.variable}`}>
         <body className="antialiased min-h-screen bg-[var(--bg)] text-[var(--text)]">
-          {children}
+          <CartProvider>
+            {children}
+          </CartProvider>
         </body>
       </html>
     </ClerkProvider>
