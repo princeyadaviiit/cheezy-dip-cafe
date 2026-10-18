@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { CartProvider } from "@/lib/cart/cart-context";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#121212",
+  themeColor: "#FDFBF7",
 };
 
 export const metadata: Metadata = {
@@ -41,11 +42,33 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider publishableKey={clerkPublishableKey}>
-      <html lang="en" className={`${bricolage.variable} ${figtree.variable}`}>
-        <body className="antialiased min-h-screen bg-[var(--bg)] text-[var(--text)]">
-          <CartProvider>
-            {children}
-          </CartProvider>
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={`${bricolage.variable} ${figtree.variable}`}
+      >
+        <head>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                try {
+                  var t = localStorage.getItem('cheezy_dip_theme');
+                  if (t === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              `,
+            }}
+          />
+        </head>
+        <body className="antialiased min-h-screen bg-[var(--bg)] text-[var(--text)] transition-colors duration-150">
+          <ThemeProvider>
+            <CartProvider>
+              {children}
+            </CartProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -66,12 +66,12 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="py-16 text-center space-y-4">
-        <div className="w-16 h-16 mx-auto rounded-full bg-neutral-900 border border-[var(--border)] flex items-center justify-center text-neutral-500">
+        <div className="w-16 h-16 mx-auto rounded-full bg-[var(--bg-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)]">
           <ShoppingBag className="w-8 h-8" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-white">Your cart is empty</h2>
-          <p className="text-xs text-[var(--muted)] mt-1 max-w-xs mx-auto">
+          <h2 className="text-base font-bold text-[var(--text)]">Your cart is empty</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs mx-auto">
             Looks like you haven&apos;t added any delicious cheesy treats yet.
           </p>
         </div>
@@ -92,8 +92,8 @@ export default function CartPage() {
     <div className="space-y-4 pb-12">
       {/* Offline Alert Banner */}
       {!isOnline && (
-        <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-xs text-red-200 flex items-center gap-2">
-          <WifiOff className="w-4 h-4 text-red-400 shrink-0" />
+        <div className="p-3 bg-red-100 dark:bg-red-950/80 border border-red-500/50 rounded-xl text-xs text-red-800 dark:text-red-200 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
           <span>You are offline. Your cart is saved locally on your device.</span>
         </div>
       )}
@@ -103,37 +103,37 @@ export default function CartPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/order"
-            className="w-10 h-10 rounded-xl bg-neutral-900 border border-[var(--border)] flex items-center justify-center text-neutral-300 hover:text-white"
+            className="w-10 h-10 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)]"
             aria-label="Back to order menu"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <h1 className="text-lg font-bold font-display text-white">Your Cart</h1>
+          <h1 className="text-lg font-bold font-display text-[var(--text)]">Your Cart</h1>
         </div>
         <button
           type="button"
           onClick={clearCart}
-          className="text-xs text-red-400 hover:text-red-300 min-h-[44px] px-2 flex items-center"
+          className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 min-h-[44px] px-2 flex items-center cursor-pointer"
         >
           Clear all
         </button>
       </div>
 
       {/* Dine-In / Delivery Context Banner */}
-      <div className="p-3 bg-neutral-900/80 rounded-xl border border-[var(--border)] flex items-center justify-between">
+      <div className="p-3 bg-[var(--bg-raised)] rounded-xl border border-[var(--border)] flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2 text-xs">
-          <span className="w-6 h-6 rounded-md bg-[var(--accent)]/20 text-[var(--accent)] flex items-center justify-center">
+          <span className="w-6 h-6 rounded-md bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] flex items-center justify-center">
             <Utensils className="w-3.5 h-3.5" />
           </span>
           <div>
-            <p className="font-semibold text-white">
+            <p className="font-semibold text-[var(--text)]">
               {orderType === "dine_in"
                 ? tableLabel
                   ? `Dine-in at ${tableLabel}`
                   : "Dine-in (Scan table QR to seat)"
                 : "Home Delivery"}
             </p>
-            <p className="text-[11px] text-[var(--muted)]">
+            <p className="text-[11px] text-[var(--text-muted)]">
               {orderType === "dine_in"
                 ? "Pay at counter when finished"
                 : "Prepaid online via Razorpay"}
@@ -148,7 +148,7 @@ export default function CartPage() {
           return (
             <div
               key={item.cartItemId}
-              className="p-3.5 bg-neutral-900/60 border border-[var(--border)] rounded-2xl space-y-2.5"
+              className="p-3.5 bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl space-y-2.5 shadow-xs"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -158,7 +158,7 @@ export default function CartPage() {
                         <span className="w-1 h-1 rounded-full bg-emerald-500" />
                       </span>
                     )}
-                    <h3 className="text-sm font-bold text-white truncate">
+                    <h3 className="text-sm font-bold text-[var(--text)] truncate">
                       {item.menuItem.name}
                     </h3>
                   </div>
@@ -169,7 +169,7 @@ export default function CartPage() {
                       {item.selectedOptions.map((opt) => (
                         <span
                           key={opt}
-                          className="text-[10px] bg-neutral-800 text-neutral-300 px-1.5 py-0.5 rounded border border-[var(--border)]"
+                          className="text-[10px] bg-[var(--bg-inset)] text-[var(--text-muted)] px-1.5 py-0.5 rounded border border-[var(--border)]"
                         >
                           {opt}
                         </span>
@@ -179,7 +179,7 @@ export default function CartPage() {
 
                   {/* Kitchen note */}
                   {item.note && (
-                    <p className="text-[11px] text-amber-300/80 italic mt-1">
+                    <p className="text-[11px] text-[var(--brand-primary)] italic mt-1">
                       Note: &quot;{item.note}&quot;
                     </p>
                   )}
@@ -189,7 +189,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => removeItem(item.cartItemId)}
-                  className="text-neutral-500 hover:text-red-400 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2"
+                  className="text-[var(--text-muted)] hover:text-red-500 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2 cursor-pointer"
                   aria-label={`Remove ${item.menuItem.name} from cart`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -197,27 +197,27 @@ export default function CartPage() {
               </div>
 
               {/* Price and Quantity Stepper */}
-              <div className="flex items-center justify-between pt-1 border-t border-neutral-800/80">
-                <span className="text-sm font-extrabold text-[var(--accent)]">
+              <div className="flex items-center justify-between pt-1 border-t border-[var(--border)]">
+                <span className="text-sm font-extrabold text-[var(--brand-primary)]">
                   ₹{Math.round(item.itemTotalMinor / 100)}
                 </span>
 
-                <div className="flex items-center border border-[var(--border)] rounded-xl bg-neutral-900 overflow-hidden h-9">
+                <div className="flex items-center border border-[var(--border)] rounded-xl bg-[var(--bg-inset)] overflow-hidden h-9">
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.cartItemId, -1)}
-                    className="w-8 h-9 flex items-center justify-center text-sm font-bold text-neutral-300 hover:text-white"
+                    className="w-8 h-9 flex items-center justify-center text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text)] cursor-pointer"
                     aria-label="Decrease quantity"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="w-7 text-center text-xs font-bold text-white">
+                  <span className="w-7 text-center text-xs font-bold text-[var(--text)]">
                     {item.quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.cartItemId, 1)}
-                    className="w-8 h-9 flex items-center justify-center text-sm font-bold text-neutral-300 hover:text-white"
+                    className="w-8 h-9 flex items-center justify-center text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text)] cursor-pointer"
                     aria-label="Increase quantity"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -232,33 +232,33 @@ export default function CartPage() {
       {/* Add More Items Button */}
       <Link
         href="/order"
-        className="w-full py-2.5 rounded-xl border border-dashed border-neutral-700 hover:border-[var(--accent)] text-xs font-bold text-neutral-300 hover:text-white flex items-center justify-center gap-1.5 transition-colors min-h-[44px]"
+        className="w-full py-2.5 rounded-xl border border-dashed border-[var(--border-strong)] hover:border-[var(--brand-primary)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text)] flex items-center justify-center gap-1.5 transition-colors min-h-[44px]"
       >
         <Plus className="w-3.5 h-3.5" /> Add more items
       </Link>
 
       {/* Coupon Code Section */}
-      <div className="p-3.5 bg-neutral-900/80 rounded-2xl border border-[var(--border)] space-y-2">
+      <div className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2 shadow-xs">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-white flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5 text-amber-400" /> Offers & Coupons
+          <span className="font-bold text-[var(--text)] flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-[var(--brand-primary)]" /> Offers & Coupons
           </span>
-          <span className="text-[11px] text-amber-400">Try CHEESE20 or DIPFIRST</span>
+          <span className="text-[11px] text-[var(--brand-primary)] font-medium">Try CHEESE20 or DIPFIRST</span>
         </div>
 
         {appliedCoupon ? (
-          <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs">
+          <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <div>
-                <p className="font-bold text-emerald-300 uppercase tracking-wider">{appliedCoupon.code} Applied</p>
-                <p className="text-[11px] text-emerald-200">You saved ₹{Math.round(appliedCoupon.discountMinor / 100)} on this order!</p>
+                <p className="font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">{appliedCoupon.code} Applied</p>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-200">You saved ₹{Math.round(appliedCoupon.discountMinor / 100)} on this order!</p>
               </div>
             </div>
             <button
               type="button"
               onClick={handleRemoveCoupon}
-              className="text-xs font-bold text-red-400 hover:text-red-300 min-h-[44px] px-2 flex items-center"
+              className="text-xs font-bold text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 min-h-[44px] px-2 flex items-center cursor-pointer"
             >
               Remove
             </button>
@@ -271,7 +271,7 @@ export default function CartPage() {
                 placeholder="Enter coupon code"
                 value={couponInput}
                 onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                className="flex-1 px-3 py-2 text-xs bg-neutral-800 border border-[var(--border)] rounded-xl text-white uppercase placeholder:normal-case placeholder-neutral-500 focus:outline-none focus:border-[var(--accent)] min-h-[44px]"
+                className="flex-1 px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] uppercase placeholder:normal-case placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
               />
               <Button
                 variant="outline"
@@ -283,7 +283,7 @@ export default function CartPage() {
               </Button>
             </div>
             {couponError && (
-              <p className="text-[11px] text-red-400 flex items-center gap-1 pl-1">
+              <p className="text-[11px] text-red-500 dark:text-red-400 flex items-center gap-1 pl-1">
                 <AlertTriangle className="w-3 h-3" /> {couponError}
               </p>
             )}
@@ -292,31 +292,31 @@ export default function CartPage() {
       </div>
 
       {/* Bill Breakdown */}
-      <div className="p-4 bg-neutral-900/80 rounded-2xl border border-[var(--border)] space-y-2 text-xs">
-        <h4 className="font-bold text-white text-sm pb-1 border-b border-neutral-800">
+      <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2 text-xs shadow-xs">
+        <h4 className="font-bold text-[var(--text)] text-sm pb-1 border-b border-[var(--border)]">
           Bill Details
         </h4>
-        <div className="flex justify-between text-neutral-300">
+        <div className="flex justify-between text-[var(--text-muted)]">
           <span>Item Total ({totalCount} items)</span>
-          <span>₹{Math.round(subtotalMinor / 100)}</span>
+          <span className="text-[var(--text)] font-semibold">₹{Math.round(subtotalMinor / 100)}</span>
         </div>
         {appliedCoupon && (
-          <div className="flex justify-between text-emerald-400 font-semibold">
+          <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
             <span>Coupon Discount ({appliedCoupon.code})</span>
             <span>- ₹{Math.round(appliedCoupon.discountMinor / 100)}</span>
           </div>
         )}
-        <div className="flex justify-between text-neutral-300">
+        <div className="flex justify-between text-[var(--text-muted)]">
           <span>Delivery Partner Fee</span>
-          <span>{orderType === "dine_in" ? "FREE (Dine-in)" : "₹30"}</span>
+          <span className="text-[var(--text)] font-semibold">{orderType === "dine_in" ? "FREE (Dine-in)" : "₹30"}</span>
         </div>
-        <div className="flex justify-between text-neutral-400 text-[11px]">
+        <div className="flex justify-between text-[var(--text-muted)] text-[11px]">
           <span>Taxes (GST)</span>
           <span>Included in prices</span>
         </div>
-        <div className="pt-2 border-t border-neutral-800 flex justify-between items-center text-sm font-extrabold text-white">
+        <div className="pt-2 border-t border-[var(--border)] flex justify-between items-center text-sm font-extrabold text-[var(--text)]">
           <span>To Pay</span>
-          <span className="text-base text-[var(--accent)]">
+          <span className="text-base text-[var(--brand-primary)]">
             ₹{Math.round(grandTotalMinor / 100)}
           </span>
         </div>

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { CATEGORIES, MENU_ITEMS, type MenuItem } from "@/lib/menu-data";
 import { formatPrice } from "@/lib/utils";
 import { Search, ArrowRight, Utensils, X } from "lucide-react";
@@ -37,11 +38,14 @@ export default function PublicMenuPage() {
           </Link>
           <h1 className="text-xl font-bold font-display text-[var(--text)]">Cafe Menu</h1>
         </div>
-        <Link href="/order">
-          <Button size="sm" variant="primary" className="font-bold gap-1 shadow">
-            Order <ArrowRight className="w-3.5 h-3.5" />
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle size="sm" />
+          <Link href="/order">
+            <Button size="sm" variant="primary" className="font-bold gap-1 shadow">
+              Order <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </Link>
+        </div>
       </header>
 
       {/* Search Input */}
@@ -58,7 +62,7 @@ export default function PublicMenuPage() {
           <button
             type="button"
             onClick={() => setSearchQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white p-1"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text)] p-1"
           >
             <X className="w-4 h-4" />
           </button>
@@ -73,7 +77,7 @@ export default function PublicMenuPage() {
           className={`min-h-[38px] px-3.5 py-1.5 rounded-[var(--r-pill)] text-xs font-semibold whitespace-nowrap transition-colors shrink-0 ${
             activeCategory === "all"
               ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]"
-              : "bg-[var(--bg-raised)] text-[var(--text-muted)] border border-[var(--border)] hover:text-white"
+              : "bg-[var(--bg-raised)] text-[var(--text-muted)] border border-[var(--border)] hover:text-[var(--text)]"
           }`}
         >
           All Items ({MENU_ITEMS.length})
@@ -86,7 +90,7 @@ export default function PublicMenuPage() {
             className={`min-h-[38px] px-3.5 py-1.5 rounded-[var(--r-pill)] text-xs font-semibold whitespace-nowrap transition-colors shrink-0 ${
               activeCategory === cat.id
                 ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]"
-                : "bg-[var(--bg-raised)] text-[var(--text-muted)] border border-[var(--border)] hover:text-white"
+                : "bg-[var(--bg-raised)] text-[var(--text-muted)] border border-[var(--border)] hover:text-[var(--text)]"
             }`}
           >
             {cat.name}
@@ -130,7 +134,7 @@ export default function PublicMenuPage() {
               onClick={() => setSelectedItem(item)}
               className="rounded-[var(--r-card)] bg-[var(--bg-raised)] border border-[var(--border)] overflow-hidden p-3 flex gap-3.5 shadow-xs hover:border-[var(--brand-primary)]/40 transition-colors cursor-pointer"
             >
-              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[var(--r-input)] overflow-hidden bg-zinc-900 shrink-0">
+              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[var(--r-input)] overflow-hidden bg-[var(--bg-inset)] shrink-0">
                 <Image
                   src={item.imagePath}
                   alt={item.name}
@@ -138,7 +142,7 @@ export default function PublicMenuPage() {
                   className="object-cover"
                   sizes="112px"
                 />
-                <span className="absolute top-1.5 left-1.5 bg-black/80 w-2.5 h-2.5 rounded-full border border-emerald-500/40 flex items-center justify-center">
+                <span className="absolute top-1.5 left-1.5 bg-black/60 w-2.5 h-2.5 rounded-full border border-emerald-500/40 flex items-center justify-center">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 </span>
               </div>
@@ -157,7 +161,7 @@ export default function PublicMenuPage() {
                   <span className="text-sm font-extrabold font-mono text-[var(--brand-primary)]">
                     {formatPrice(item.priceMinor)}
                   </span>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] border border-[var(--border)] px-2 py-1 rounded-[var(--r-input)] hover:text-white">
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] border border-[var(--border)] px-2 py-1 rounded-[var(--r-input)] hover:text-[var(--text)] hover:bg-[var(--border)] transition-colors">
                     View & Order
                   </span>
                 </div>
@@ -191,7 +195,7 @@ export default function PublicMenuPage() {
       >
         {selectedItem && (
           <div className="space-y-4 text-left">
-            <div className="relative w-full aspect-video rounded-[var(--r-input)] overflow-hidden bg-zinc-900">
+            <div className="relative w-full aspect-video rounded-[var(--r-input)] overflow-hidden bg-[var(--bg-inset)]">
               <Image
                 src={selectedItem.imagePath}
                 alt={selectedItem.name}
@@ -200,7 +204,7 @@ export default function PublicMenuPage() {
               />
             </div>
             <div>
-              <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 mb-1.5">
+              <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 mb-1.5">
                 100% Vegetarian
               </span>
               <p className="text-xs text-[var(--text)] leading-relaxed">
@@ -217,7 +221,7 @@ export default function PublicMenuPage() {
                   {selectedItem.options[0].choices.map((choice, idx) => (
                     <div
                       key={idx}
-                      className="flex justify-between items-center p-2 rounded-[var(--r-input)] bg-[var(--bg)] border border-[var(--border)] text-xs"
+                      className="flex justify-between items-center p-2 rounded-[var(--r-input)] bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text)]"
                     >
                       <span>{choice.label}</span>
                       {choice.priceDeltaMinor > 0 && (

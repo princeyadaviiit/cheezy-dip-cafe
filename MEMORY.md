@@ -61,7 +61,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 |---|---|---|
 | 2026-10-18 | `npm run lint` | Pass: 0 errors, 0 warnings |
 | 2026-10-18 | `npm run typecheck` | Pass: 0 errors |
-| 2026-10-18 | `npm test` | Pass: 12 test files, 65 tests passed (0 failed, covering pricing, table cookie, order service, kitchen state machine, payment signatures, webhooks, amount mismatch, coupon limits, and sales reporting) |
+| 2026-10-18 | `npm test` | Pass: 13 test files, 68 tests passed (0 failed, including theme provider & toggle unit tests) |
 | 2026-10-18 | `npm run build` | Pass: 20 static/dynamic routes built cleanly with Turbopack |
 
 ## 7. Security checklist progress
@@ -81,6 +81,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-18 | Theme System (Light Theme Default + Toggle): Scaffolding ThemeProvider with React 19 `useSyncExternalStore` and localStorage persistence, configured warm cafe light mode palette as root default with dark mode overrides in globals.css, added accessible >=44px ThemeToggle to public header, public menu, customer bar, kitchen display, and admin controls, refactored hardcoded dark classes to semantic CSS tokens, and verified 68/68 Vitest tests + 20/20 Turbopack build routes. | app/globals.css, components/theme/, app/, components/, tests/unit/theme.test.tsx | Polish
 - 2026-10-18 | Phase 9 complete: Created compliance pages (Terms, Privacy, Refund, Delivery, Contact), configured HTTP security headers & CSP in Next config, built Playwright mobile e2e test suite, scoped Vitest to unit tests, and compiled Phase 10 handover runbook at `docs/FINAL-REPORT.md`. Tagged `phase-9`. | app/(public)/, next.config.ts, tests/e2e/, docs/FINAL-REPORT.md | Phase 9
 - 2026-10-18 | Phase 8 complete: Built atomic concurrency-protected coupon service, sales summary reporting with channel split, and customer offline detection banner. Tagged `phase-8`. | lib/coupons/, services/report-service.ts, app/(customer)/order/cart/, tests/unit/ | Phase 8
 - 2026-10-18 | Phase 7 complete: Built delivery area validator, Razorpay test mode integration, raw-body HMAC webhook handler with idempotency, amount tampering rejection, and stale payment cron. Tagged `phase-7`. | lib/delivery/, lib/razorpay/, services/payment-service.ts, app/api/, tests/unit/ | Phase 7

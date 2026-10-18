@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, ArrowLeft, RefreshCw, Smartphone } from "lucide-react";
+import { ShieldCheck, ArrowLeft, RefreshCw } from "lucide-react";
 
 export function PhoneSignIn() {
   const router = useRouter();
@@ -18,22 +18,14 @@ export function PhoneSignIn() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState("");
   const [resendTimer, setResendTimer] = React.useState(30);
-  const [canResend, setCanResend] = React.useState(false);
+  const canResend = resendTimer === 0;
 
   // Timer countdown
   React.useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (step === "otp" && resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (step !== "otp" || resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => Math.max(0, prev - 1));
+    }, 1000);
     return () => clearInterval(interval);
   }, [step, resendTimer]);
 
@@ -53,12 +45,10 @@ export function PhoneSignIn() {
       setIsLoading(false);
       setStep("otp");
       setResendTimer(30);
-      setCanResend(false);
     }, 700);
   };
 
   const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return;
     const newOtp = [...otp];
     newOtp[index] = value.slice(-1);
     setOtp(newOtp);
@@ -98,7 +88,6 @@ export function PhoneSignIn() {
   const handleResend = () => {
     if (!canResend) return;
     setResendTimer(30);
-    setCanResend(false);
     setOtp(["", "", "", "", "", ""]);
     setErrorMessage("");
   };
@@ -107,7 +96,7 @@ export function PhoneSignIn() {
     <div className="w-full max-w-sm mx-auto p-5 bg-[var(--bg-raised)] rounded-[var(--r-card)] border border-[var(--border)] shadow-[var(--shadow-float)]">
       {/* Brand Header */}
       <div className="flex flex-col items-center text-center gap-2 mb-6">
-        <div className="relative w-16 h-16 rounded-full overflow-hidden border border-[var(--brand-primary)] bg-black shadow">
+        <div className="relative w-16 h-16 rounded-full overflow-hidden border border-[var(--brand-primary)] bg-[var(--bg)] shadow">
           <Image
             src="/brand/logo.jpeg"
             alt="Cheezy Dip Cafe"
@@ -154,7 +143,7 @@ export function PhoneSignIn() {
               />
             </div>
             <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-1 pt-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               Standard SMS rates apply • India numbers only
             </p>
           </div>
@@ -163,7 +152,7 @@ export function PhoneSignIn() {
             type="submit"
             variant="primary"
             size="lg"
-            className="w-full font-bold shadow-md"
+            className="w-full font-bold shadow-md cursor-pointer"
             isLoading={isLoading}
           >
             Send OTP
@@ -193,7 +182,7 @@ export function PhoneSignIn() {
             type="submit"
             variant="primary"
             size="lg"
-            className="w-full font-bold shadow-md"
+            className="w-full font-bold shadow-md cursor-pointer"
             isLoading={isLoading}
           >
             Verify & Continue
@@ -207,7 +196,7 @@ export function PhoneSignIn() {
                 setStep("phone");
                 setErrorMessage("");
               }}
-              className="text-[var(--text-muted)] hover:text-white flex items-center gap-1 p-1 min-h-[36px]"
+              className="text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 p-1 min-h-[36px] cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Edit Number
             </button>
@@ -216,7 +205,7 @@ export function PhoneSignIn() {
               <button
                 type="button"
                 onClick={handleResend}
-                className="text-[var(--brand-primary)] font-semibold hover:underline flex items-center gap-1 p-1 min-h-[36px]"
+                className="text-[var(--brand-primary)] font-semibold hover:underline flex items-center gap-1 p-1 min-h-[36px] cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Resend OTP
               </button>

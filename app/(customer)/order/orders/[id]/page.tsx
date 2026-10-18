@@ -4,11 +4,9 @@ import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
-  Clock,
   ChefHat,
   Utensils,
   ArrowLeft,
-  Sparkles,
   RefreshCw,
 } from "lucide-react";
 import { getOrderById, type OrderRecord } from "@/services/order-service";
@@ -76,8 +74,8 @@ export default function OrderTrackingPage({
   if (loading) {
     return (
       <div className="py-20 text-center space-y-3">
-        <div className="w-12 h-12 border-3 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-[var(--muted)]">Loading order details...</p>
+        <div className="w-12 h-12 border-3 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-[var(--text-muted)]">Loading order details...</p>
       </div>
     );
   }
@@ -85,8 +83,8 @@ export default function OrderTrackingPage({
   if (!order) {
     return (
       <div className="py-16 text-center space-y-4">
-        <h2 className="text-base font-bold text-white">Order not found</h2>
-        <p className="text-xs text-[var(--muted)]">
+        <h2 className="text-base font-bold text-[var(--text)]">Order not found</h2>
+        <p className="text-xs text-[var(--text-muted)]">
           We couldn&apos;t locate the order details for this ID.
         </p>
         <Link href="/order">
@@ -106,16 +104,16 @@ export default function OrderTrackingPage({
         <div className="flex items-center gap-2">
           <Link
             href="/order"
-            className="w-10 h-10 rounded-xl bg-neutral-900 border border-[var(--border)] flex items-center justify-center text-neutral-300 hover:text-white"
+            className="w-10 h-10 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)]"
             aria-label="Back to menu"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="text-lg font-bold font-display text-white">
+            <h1 className="text-lg font-bold font-display text-[var(--text)]">
               Order {order.orderNumber}
             </h1>
-            <p className="text-[11px] text-[var(--muted)]">
+            <p className="text-[11px] text-[var(--text-muted)]">
               {new Date(order.placedAt).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -128,23 +126,23 @@ export default function OrderTrackingPage({
           type="button"
           onClick={() => fetchOrder(true)}
           disabled={refreshing}
-          className="p-2 rounded-xl bg-neutral-900 border border-[var(--border)] text-neutral-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
+          className="p-2 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
           aria-label="Refresh status"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-[var(--accent)]" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-[var(--brand-primary)]" : ""}`} />
         </button>
       </div>
 
       {/* Main Status Hero Card */}
-      <div className="p-4 bg-gradient-to-br from-neutral-900 to-neutral-950 rounded-2xl border border-[var(--border)] space-y-4">
+      <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-4 shadow-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-[var(--accent)]/20 text-[var(--accent)] flex items-center justify-center">
+            <span className="w-8 h-8 rounded-lg bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] flex items-center justify-center">
               <ChefHat className="w-4 h-4" />
             </span>
             <div>
-              <p className="text-xs text-[var(--muted)]">Current Status</p>
-              <h2 className="text-sm font-bold text-white capitalize">
+              <p className="text-xs text-[var(--text-muted)]">Current Status</p>
+              <h2 className="text-sm font-bold text-[var(--text)] capitalize">
                 {order.orderStatus.replace("_", " ")}
               </h2>
             </div>
@@ -154,11 +152,11 @@ export default function OrderTrackingPage({
 
         {/* Dine-In Table Banner */}
         {order.tableLabel && (
-          <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-500/30 flex items-center justify-between text-xs">
-            <span className="text-amber-200 font-semibold flex items-center gap-1.5">
-              <Utensils className="w-3.5 h-3.5 text-amber-400" /> Seated at {order.tableLabel}
+          <div className="p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--brand-primary)]/30 flex items-center justify-between text-xs">
+            <span className="text-[var(--text)] font-semibold flex items-center gap-1.5">
+              <Utensils className="w-3.5 h-3.5 text-[var(--brand-primary)]" /> Seated at {order.tableLabel}
             </span>
-            <span className="text-[11px] text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20 font-medium">
+            <span className="text-[11px] text-[var(--brand-primary)] bg-[var(--brand-primary)]/10 px-2 py-0.5 rounded border border-[var(--brand-primary)]/20 font-medium">
               Pay at counter
             </span>
           </div>
@@ -176,10 +174,10 @@ export default function OrderTrackingPage({
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors z-10 ${
                       isCurrent
-                        ? "bg-[var(--accent)] text-black ring-4 ring-amber-500/20"
+                        ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] ring-4 ring-[var(--brand-primary)]/20"
                         : isDone
-                        ? "bg-emerald-500 text-black"
-                        : "bg-neutral-800 text-neutral-500 border border-neutral-700"
+                        ? "bg-emerald-600 dark:bg-emerald-500 text-white dark:text-black"
+                        : "bg-[var(--bg-inset)] text-[var(--text-muted)] border border-[var(--border)]"
                     }`}
                   >
                     {isDone ? (
@@ -191,10 +189,10 @@ export default function OrderTrackingPage({
                   <span
                     className={`mt-1.5 text-[10px] font-semibold leading-tight ${
                       isCurrent
-                        ? "text-[var(--accent)]"
+                        ? "text-[var(--brand-primary)]"
                         : isDone
-                        ? "text-white"
-                        : "text-neutral-500"
+                        ? "text-[var(--text)]"
+                        : "text-[var(--text-muted)]"
                     }`}
                   >
                     {step.label}
@@ -207,29 +205,29 @@ export default function OrderTrackingPage({
       </div>
 
       {/* Items Breakdown Card */}
-      <div className="p-4 bg-neutral-900/80 rounded-2xl border border-[var(--border)] space-y-3 text-xs">
-        <h3 className="font-bold text-white text-sm pb-1 border-b border-neutral-800">
+      <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-3 text-xs shadow-xs">
+        <h3 className="font-bold text-[var(--text)] text-sm pb-1 border-b border-[var(--border)]">
           Items Ordered
         </h3>
         <div className="space-y-2.5">
           {order.items.map((item, idx) => (
             <div key={idx} className="flex justify-between items-start">
               <div>
-                <p className="font-semibold text-white">
+                <p className="font-semibold text-[var(--text)]">
                   {item.quantity}x {item.nameSnapshot}
                 </p>
                 {item.modifiersSnapshot && item.modifiersSnapshot.length > 0 && (
-                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     {item.modifiersSnapshot.map((m) => m.label).join(", ")}
                   </p>
                 )}
                 {item.note && (
-                  <p className="text-[10px] text-amber-300/80 italic mt-0.5">
+                  <p className="text-[10px] text-[var(--brand-primary)] italic mt-0.5">
                     &quot;{item.note}&quot;
                   </p>
                 )}
               </div>
-              <span className="font-bold text-white shrink-0">
+              <span className="font-bold text-[var(--text)] shrink-0">
                 ₹{Math.round(item.lineTotalMinor / 100)}
               </span>
             </div>
@@ -237,20 +235,20 @@ export default function OrderTrackingPage({
         </div>
 
         {/* Financial Details */}
-        <div className="pt-2 border-t border-neutral-800 space-y-1.5 text-neutral-300">
+        <div className="pt-2 border-t border-[var(--border)] space-y-1.5 text-[var(--text-muted)]">
           <div className="flex justify-between">
             <span>Subtotal</span>
-            <span>₹{Math.round(order.subtotalMinor / 100)}</span>
+            <span className="text-[var(--text)] font-semibold">₹{Math.round(order.subtotalMinor / 100)}</span>
           </div>
           {order.deliveryFeeMinor > 0 && (
             <div className="flex justify-between">
               <span>Delivery Fee</span>
-              <span>₹{Math.round(order.deliveryFeeMinor / 100)}</span>
+              <span className="text-[var(--text)] font-semibold">₹{Math.round(order.deliveryFeeMinor / 100)}</span>
             </div>
           )}
-          <div className="flex justify-between items-center text-sm font-extrabold text-white pt-1 border-t border-neutral-850">
+          <div className="flex justify-between items-center text-sm font-extrabold text-[var(--text)] pt-1 border-t border-[var(--border)]">
             <span>Total Amount</span>
-            <span className="text-base text-[var(--accent)]">
+            <span className="text-base text-[var(--brand-primary)]">
               ₹{Math.round(order.totalMinor / 100)}
             </span>
           </div>
@@ -259,9 +257,9 @@ export default function OrderTrackingPage({
 
       {/* Customer Note */}
       {order.customerNote && (
-        <div className="p-3 bg-neutral-900/60 rounded-xl border border-[var(--border)] text-xs">
-          <p className="text-[11px] text-[var(--muted)]">Note to kitchen:</p>
-          <p className="text-neutral-200 mt-0.5">{order.customerNote}</p>
+        <div className="p-3 bg-[var(--bg-raised)] rounded-xl border border-[var(--border)] text-xs shadow-xs">
+          <p className="text-[11px] text-[var(--text-muted)]">Note to kitchen:</p>
+          <p className="text-[var(--text)] mt-0.5">{order.customerNote}</p>
         </div>
       )}
 
@@ -273,7 +271,7 @@ export default function OrderTrackingPage({
           </Button>
         </Link>
         <Link href="/order/orders" className="block">
-          <Button variant="ghost" size="sm" className="w-full text-xs text-neutral-400">
+          <Button variant="ghost" size="sm" className="w-full text-xs text-[var(--text-muted)]">
             View All Past Orders
           </Button>
         </Link>

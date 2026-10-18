@@ -2,6 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { formatPrice } from "@/lib/utils";
 import { MENU_ITEMS } from "@/lib/menu-data";
 import { QrCode, Bike, Clock, MapPin, Phone, ChevronRight } from "lucide-react";
@@ -11,10 +12,26 @@ export default function LandingPage() {
 
   return (
     <div className="flex-1 flex flex-col items-center w-full bg-[var(--bg)] text-[var(--text)] overflow-x-hidden">
+      {/* Top Header with Theme Switcher */}
+      <header className="w-full max-w-md px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+        <Link href="/" className="font-display font-extrabold text-base tracking-tight text-[var(--text)]">
+          Cheezy dip <span className="text-[var(--brand-primary)]">cafe</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/menu"
+            className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text)] px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Menu
+          </Link>
+          <ThemeToggle size="sm" />
+        </div>
+      </header>
+
       {/* 1. HERO SECTION (Designed for 360px mobile viewport first) */}
       <section className="w-full max-w-md px-4 pt-6 pb-8 flex flex-col items-center text-center">
         {/* Brand Badge */}
-        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-[var(--brand-primary)] shadow-[var(--shadow-float)] bg-black mb-3 shrink-0">
+        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-[var(--brand-primary)] shadow-[var(--shadow-float)] bg-[var(--bg-raised)] mb-3 shrink-0">
           <Image
             src="/brand/logo.jpeg"
             alt="Cheezy Dip Cafe Logo"
@@ -39,7 +56,7 @@ export default function LandingPage() {
 
         {/* Hero Food Visual (The Dip Moment) */}
         <div className="w-full my-5 relative group">
-          <div className="relative w-full aspect-[4/3] rounded-[var(--r-card)] overflow-hidden border border-[var(--border)] shadow-[var(--shadow-float)] bg-zinc-900">
+          <div className="relative w-full aspect-[4/3] rounded-[var(--r-card)] overflow-hidden border border-[var(--border)] shadow-[var(--shadow-float)] bg-[var(--bg-inset)]">
             <Image
               src="/brand/cheesy_dip_hero.jpg"
               alt="Crispy French fries dipping into molten cheese sauce"
@@ -49,7 +66,7 @@ export default function LandingPage() {
               sizes="(max-width: 640px) 100vw, 448px"
             />
             {/* Live Status Chip */}
-            <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded-[var(--r-pill)] border border-emerald-500/40 flex items-center gap-1.5 shadow">
+            <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-xs px-2.5 py-1 rounded-[var(--r-pill)] border border-emerald-500/40 flex items-center gap-1.5 shadow">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-semibold text-emerald-400">Open Now • Kitchen Active</span>
             </div>
@@ -104,7 +121,7 @@ export default function LandingPage() {
               key={dish.id}
               className="rounded-[var(--r-card)] bg-[var(--bg-raised)] border border-[var(--border)] overflow-hidden flex flex-col shadow-sm"
             >
-              <div className="relative w-full aspect-[16/10] bg-zinc-900">
+              <div className="relative w-full aspect-[16/10] bg-[var(--bg-inset)]">
                 <Image
                   src={dish.imagePath}
                   alt={dish.name}
@@ -112,7 +129,7 @@ export default function LandingPage() {
                   className="object-cover"
                   sizes="(max-width: 640px) 100vw, 220px"
                 />
-                <span className="absolute bottom-2 left-2 bg-black/85 text-[10px] px-2 py-0.5 rounded font-mono font-bold text-[var(--brand-primary)] border border-white/10">
+                <span className="absolute bottom-2 left-2 bg-[var(--bg-raised)]/95 text-[10px] px-2 py-0.5 rounded font-mono font-bold text-[var(--brand-primary)] border border-[var(--border)] shadow-xs">
                   {formatPrice(dish.priceMinor)}
                 </span>
               </div>
@@ -191,7 +208,7 @@ export default function LandingPage() {
             <div>
               <p className="font-semibold text-[var(--text)]">Opening Hours</p>
               <p className="text-[var(--text-muted)]">Monday – Sunday: 11:00 AM – 11:00 PM</p>
-              <p className="text-[10px] text-emerald-400 mt-0.5">Dine-in & Delivery active</p>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Dine-in & Delivery active</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5 pt-2 border-t border-[var(--border)]">

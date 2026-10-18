@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToastProvider, useToast } from "@/components/ui/toast";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Plus } from "lucide-react";
 
 function StyleTileContent() {
@@ -19,7 +20,10 @@ function StyleTileContent() {
       <main className="w-full max-w-[360px] sm:max-w-md flex flex-col gap-8">
         {/* Header / Logo section */}
         <section className="flex flex-col items-center text-center gap-3 pt-4">
-          <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-[var(--brand-primary)] shadow-lg bg-black">
+          <div className="w-full flex justify-end">
+            <ThemeToggle size="sm" />
+          </div>
+          <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-[var(--brand-primary)] shadow-lg bg-[var(--bg)]">
             <Image
               src="/brand/logo.jpeg"
               alt="Cheezy Dip Cafe Logo"
@@ -164,7 +168,7 @@ function StyleTileContent() {
             5. Authentic Menu Card
           </h2>
           <article className="overflow-hidden rounded-[var(--r-card)] bg-[var(--bg)] border border-[var(--border)] flex flex-col shadow-sm">
-            <div className="relative w-full h-44 bg-zinc-900">
+            <div className="relative w-full h-44 bg-[var(--bg-inset)]">
               <Image
                 src="/brand/dishes/fries_cheese_loaded.jpg"
                 alt="Cheese Loaded Fries"
