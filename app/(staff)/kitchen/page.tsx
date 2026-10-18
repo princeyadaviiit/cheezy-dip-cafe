@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   ChefHat,
   Volume2,
@@ -10,12 +11,14 @@ import {
   Utensils,
   CheckCircle2,
   Flame,
+  ShieldCheck,
 } from "lucide-react";
 import {
   getKitchenOrders,
   transitionOrderStatus,
   markOrderPaidAtCounter,
 } from "@/services/kitchen-service";
+import { setDevStaffRole } from "@/services/admin-service";
 import { type OrderRecord } from "@/lib/orders/order-store";
 import { type OrderStatus } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +63,7 @@ export default function KitchenPage() {
   const [activeTab, setActiveTab] = useState<"incoming" | "cooking" | "ready" | "all">("incoming");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const previousOrderIdsRef = useRef<Set<string>>(new Set());
 
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -84,9 +88,15 @@ export default function KitchenPage() {
           previousOrderIdsRef.current = currentIds;
           setOrders(data);
           setCurrentTime(Date.now());
+          setAuthError(null);
         }
-      } catch {
-        // Ignored in poll
+      } catch (err: unknown) {
+        if (active) {
+          const msg = err instanceof Error ? err.message : "Access restricted";
+          if (msg.includes("FORBIDDEN") || msg.includes("UNAUTHORIZED")) {
+            setAuthError(msg);
+          }
+        }
       }
     };
 
@@ -194,8 +204,53 @@ export default function KitchenPage() {
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-[var(--brand-primary)]" : ""}`} />
           </button>
+
+          <Link
+            href="/staff"
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--border)] transition-colors min-h-[44px] flex items-center"
+          >
+            Staff Portal
+          </Link>
         </div>
       </header>
+
+      {/* Access Error Banner / Dev Role Switcher */}
+      {authError && (
+        <div className="p-4 bg-orange-50 dark:bg-orange-950/40 border border-orange-500/50 rounded-2xl space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-700 dark:text-orange-300 flex items-center justify-center shrink-0">
+              <ChefHat className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-orange-900 dark:text-orange-100">
+                Kitchen Staff Authentication Required
+              </h3>
+              <p className="text-xs text-orange-800/90 dark:text-orange-300/90 mt-0.5 leading-relaxed">
+                Your account does not have Kitchen privileges. You can activate Kitchen mode for testing below, or open the Staff Portal.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={async () => {
+                await setDevStaffRole("kitchen");
+                setAuthError(null);
+                window.location.reload();
+              }}
+              className="px-3.5 py-2 rounded-xl bg-orange-600 text-white text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-xs min-h-[44px]"
+            >
+              🍳 Activate Kitchen Mode
+            </button>
+            <Link
+              href="/staff"
+              className="px-3.5 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-raised)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors inline-flex items-center justify-center min-h-[44px]"
+            >
+              Staff Portal
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="grid grid-cols-4 gap-1 p-1 bg-[var(--bg-raised)] rounded-xl border border-[var(--border)] text-xs font-bold shadow-xs">

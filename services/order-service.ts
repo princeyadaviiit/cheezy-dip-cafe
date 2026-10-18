@@ -1,6 +1,5 @@
 "use server";
 
-import { z } from "zod";
 import { getAuthSession, requireCustomerAuth } from "@/lib/auth/server";
 import { getTableContext } from "@/lib/auth/table-cookie";
 import { calculateOrderPricing } from "@/lib/orders/pricing";
@@ -13,36 +12,8 @@ import {
 
 export type { OrderRecord };
 
-// Order Creation Schema
-export const PlaceOrderSchema = z.object({
-  orderType: z.enum(["dine_in", "delivery"]),
-  items: z
-    .array(
-      z.object({
-        menuItemId: z.string().min(1),
-        quantity: z.number().int().min(1).max(50),
-        optionChoiceLabels: z.array(z.string()).optional(),
-        note: z.string().max(200).optional(),
-      })
-    )
-    .min(1, "Order must contain at least one item"),
-  couponCode: z.string().max(20).optional(),
-  addressId: z.string().uuid().optional(),
-  deliveryAddressSnapshot: z
-    .object({
-      recipientName: z.string().min(1),
-      phone: z.string().min(10),
-      line1: z.string().min(3),
-      area: z.string().min(1),
-      pincode: z.string().length(6),
-    })
-    .optional(),
-  paymentMethod: z.enum(["pay_at_counter", "razorpay"]),
-  customerNote: z.string().max(300).optional(),
-  idempotencyKey: z.string().min(8).max(64),
-});
-
-export type PlaceOrderInput = z.infer<typeof PlaceOrderSchema>;
+import { PlaceOrderSchema, type PlaceOrderInput } from "@/lib/orders/order-schema";
+export type { PlaceOrderInput };
 
 export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord> {
   const user = await requireCustomerAuth();

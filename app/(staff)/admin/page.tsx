@@ -27,12 +27,16 @@ import {
   getTablesList,
   rotateTableToken,
   getStaffList,
+  addStaffMember,
+  toggleStaffStatus,
+  setDevStaffRole,
 } from "@/services/admin-service";
 import { markOrderPaidAtCounter } from "@/services/kitchen-service";
 import { getSalesReport, type SalesReportSummary } from "@/services/report-service";
 import { type OrderRecord } from "@/lib/orders/order-store";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"orders" | "reports" | "menu" | "tables" | "settings" | "staff">("orders");
@@ -63,6 +67,13 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [rotatingTableId, setRotatingTableId] = useState<string | null>(null);
 
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState<"kitchen" | "admin" | "owner">("kitchen");
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [staffStatusMsg, setStaffStatusMsg] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
 
@@ -83,9 +94,15 @@ export default function AdminPage() {
           setTables(tbls);
           setStaffList(staff);
           setSalesReport(report);
+          setAuthError(null);
         }
-      } catch {
-        // Ignored
+      } catch (err: unknown) {
+        if (active) {
+          const msg = err instanceof Error ? err.message : "Access restricted";
+          if (msg.includes("FORBIDDEN") || msg.includes("UNAUTHORIZED")) {
+            setAuthError(msg);
+          }
+        }
       }
     };
 
@@ -97,6 +114,45 @@ export default function AdminPage() {
       clearInterval(interval);
     };
   }, [reportTimeframe]);
+
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffPhone.trim()) {
+      alert("Please enter both staff name and mobile number.");
+      return;
+    }
+    setIsAddingStaff(true);
+    setStaffStatusMsg(null);
+    try {
+      const added = await addStaffMember({
+        name: newStaffName.trim(),
+        phone: newStaffPhone.trim(),
+        role: newStaffRole,
+      });
+      setStaffList((prev) => {
+        const filtered = prev.filter((s) => s.id !== added.id);
+        return [...filtered, added];
+      });
+      setNewStaffName("");
+      setNewStaffPhone("");
+      setStaffStatusMsg(`Staff member ${added.name} successfully registered.`);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to add staff member");
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  const handleToggleStaff = async (staffId: string) => {
+    try {
+      const nextActive = await toggleStaffStatus(staffId);
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === staffId ? { ...s, isActive: nextActive } : s))
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to toggle staff status");
+    }
+  };
 
   // Handle menu toggle
   const handleToggleMenu = async (itemId: string, current: boolean) => {
@@ -186,6 +242,44 @@ export default function AdminPage() {
           </Link>
         </div>
       </header>
+
+      {/* Access Error Banner / Dev Role Switcher */}
+      {authError && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-500/50 rounded-2xl space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">
+                Staff Authentication Required
+              </h3>
+              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                Your account does not have Admin or Owner privileges. You can switch to Admin mode for testing below, or open the Staff Portal.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={async () => {
+                await setDevStaffRole("admin");
+                setAuthError(null);
+                window.location.reload();
+              }}
+              className="px-3.5 py-2 rounded-xl bg-[var(--brand-primary)] text-white text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-xs min-h-[44px]"
+            >
+              👑 Activate Admin Mode
+            </button>
+            <Link
+              href="/staff"
+              className="px-3.5 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-raised)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors inline-flex items-center justify-center min-h-[44px]"
+            >
+              Staff Portal
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Admin Tab Navigation */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 text-xs font-bold">
@@ -528,15 +622,92 @@ export default function AdminPage() {
 
       {/* TAB 6: STAFF */}
       {activeTab === "staff" && (
-        <div className="space-y-3 pt-1">
-          <div className="p-3 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-muted)] shadow-xs">
-            <p className="font-semibold text-[var(--text)]">Role-Based Access Control (RBAC)</p>
-            <p className="text-[11px] mt-0.5">
-              Staff roles are validated server-side from `staff_members`. Kitchen cannot access admin controls or delete staff.
+        <div className="space-y-4 pt-1">
+          {/* RBAC Info Card */}
+          <div className="p-3.5 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-muted)] shadow-xs space-y-1">
+            <p className="font-bold text-[var(--text)]">Staff Role-Based Access Control (RBAC)</p>
+            <p className="text-[11px] leading-relaxed">
+              Staff roles are validated server-side from <code className="text-[10px] bg-[var(--bg-inset)] px-1 py-0.5 rounded">staff_members</code> using their verified mobile phone number.
             </p>
           </div>
 
+          {/* Add Staff Member Form */}
+          <form
+            onSubmit={handleAddStaff}
+            className="p-4 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl shadow-xs space-y-3"
+          >
+            <h4 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider">
+              Register New Staff Member
+            </h4>
+
+            {staffStatusMsg && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                ✓ {staffStatusMsg}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ramesh Chef"
+                  value={newStaffName}
+                  onChange={(e) => setNewStaffName(e.target.value)}
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+                  Verified Mobile Phone
+                </label>
+                <input
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={newStaffPhone}
+                  onChange={(e) => setNewStaffPhone(e.target.value)}
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+                Assigned Role
+              </label>
+              <select
+                value={newStaffRole}
+                onChange={(e) => setNewStaffRole(e.target.value as typeof newStaffRole)}
+                className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
+              >
+                <option value="kitchen">Kitchen Staff (Kitchen Display Queue, Food Prep)</option>
+                <option value="admin">Admin / Manager (Orders, 86 Items, Table QRs)</option>
+                <option value="owner">Cafe Owner (Full System Control, Reports & Staff)</option>
+              </select>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={isAddingStaff}
+              className="w-full font-bold text-xs justify-center min-h-[44px]"
+            >
+              {isAddingStaff ? "Registering..." : "Add Staff Member"}
+            </Button>
+          </form>
+
+          {/* Active Staff List */}
           <div className="space-y-2">
+            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+              Active Staff Directory ({staffList.length})
+            </h4>
+
             {staffList.map((st) => (
               <div
                 key={st.id}
@@ -546,9 +717,22 @@ export default function AdminPage() {
                   <h4 className="font-bold text-[var(--text)]">{st.name}</h4>
                   <p className="text-[11px] text-[var(--text-muted)]">{st.phone}</p>
                 </div>
-                <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--brand-primary)] text-[var(--text-on-brand)]">
-                  {st.role}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--brand-primary)] text-white">
+                    {st.role}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStaff(st.id)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded border min-h-[32px] cursor-pointer transition-colors ${
+                      st.isActive !== false
+                        ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
+                        : "border-red-500/40 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300"
+                    }`}
+                  >
+                    {st.isActive !== false ? "Active" : "Inactive"}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

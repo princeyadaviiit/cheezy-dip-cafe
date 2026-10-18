@@ -6,25 +6,45 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { formatPrice } from "@/lib/utils";
 import { MENU_ITEMS } from "@/lib/menu-data";
 import { QrCode, Bike, Clock, MapPin, Phone, ChevronRight } from "lucide-react";
+import { Show, UserButton } from "@clerk/nextjs";
 
 export default function LandingPage() {
   const signatureDishes = MENU_ITEMS.filter((item) => item.featured).slice(0, 4);
 
   return (
     <div className="flex-1 flex flex-col items-center w-full bg-[var(--bg)] text-[var(--text)] overflow-x-hidden">
-      {/* Top Header with Theme Switcher */}
-      <header className="w-full max-w-md px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+      {/* Top Header with Theme Switcher & Clerk Auth */}
+      <header className="w-full max-w-md px-4 py-2.5 flex items-center justify-between border-b border-[var(--border)]">
         <Link href="/" className="font-display font-extrabold text-base tracking-tight text-[var(--text)]">
           Cheezy dip <span className="text-[var(--brand-primary)]">cafe</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Link
             href="/menu"
-            className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text)] px-2.5 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text)] px-2 py-1.5 rounded-lg transition-colors"
           >
             Menu
           </Link>
           <ThemeToggle size="sm" />
+          <Show when="signed-in">
+            <div className="flex items-center pl-1">
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "w-7 h-7 rounded-full border border-[var(--border)]",
+                  },
+                }}
+              />
+            </div>
+          </Show>
+          <Show when="signed-out">
+            <Link
+              href="/sign-in"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-[var(--brand-primary)] text-white hover:opacity-90 transition-opacity"
+            >
+              Sign In
+            </Link>
+          </Show>
         </div>
       </header>
 
@@ -239,6 +259,7 @@ export default function LandingPage() {
           <Link href="/refund-policy" className="hover:text-[var(--text)]">Refunds</Link>
           <Link href="/delivery-policy" className="hover:text-[var(--text)]">Delivery</Link>
           <Link href="/contact" className="hover:text-[var(--text)]">Contact</Link>
+          <Link href="/staff" className="hover:text-[var(--text)] font-medium text-[var(--brand-primary)]">Staff Portal</Link>
         </div>
         <p className="text-[11px] text-[var(--text-muted)]/80">
           FSSAI License: 22824012000000 (Regd) • GST: 07AAAAA0000A1Z5

@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/menu(.*)",
   "/t/(.*)",
   "/sign-in(.*)",
+  "/staff(.*)",
   "/terms(.*)",
   "/privacy(.*)",
   "/refund-policy(.*)",
@@ -13,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/contact(.*)",
   "/dev/(.*)",
   "/api/webhooks(.*)",
+  "/api/cron(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -21,8 +23,13 @@ export default clerkMiddleware(async (auth, req) => {
       await auth.protect();
     }
   } else {
-    // Offline/Development guard: unauthenticated access to protected routes redirects to sign-in
-    if (!isPublicRoute(req)) {
+    // In local dev without live Clerk Secret Key, allow access if session cookie or dev role is present
+    const hasSession =
+      req.cookies.has("__session") ||
+      req.cookies.has("cd_dev_session") ||
+      req.cookies.has("cd_staff_role");
+
+    if (!isPublicRoute(req) && !hasSession && process.env.NODE_ENV === "production") {
       const url = new URL("/sign-in", req.url);
       url.searchParams.set("redirect_url", req.nextUrl.pathname);
       return NextResponse.redirect(url);

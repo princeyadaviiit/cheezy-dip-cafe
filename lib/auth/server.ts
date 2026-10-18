@@ -1,6 +1,12 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
+import {
+  STAFF_STORE,
+  findStaffByPhoneOrId,
+  type StaffRole,
+} from "./staff-store";
 
-export type StaffRole = "kitchen" | "admin" | "owner";
+export type { StaffRole };
 
 export interface AuthenticatedUser {
   userId: string;
@@ -24,12 +30,12 @@ export async function getAuthSession(): Promise<AuthenticatedUser | null> {
       userId,
       phone,
     };
-  } catch (error) {
+  } catch {
     // In mock/test environments without active Clerk keys
     if (process.env.NODE_ENV === "test") {
       return {
         userId: "test_customer_clerk_id",
-        phone: "+919876543210",
+        phone: "+919123456789",
       };
     }
     return null;
@@ -49,17 +55,54 @@ export async function requireCustomerAuth(): Promise<AuthenticatedUser> {
 }
 
 /**
- * Mock/Database lookup for staff role.
- * In Phase 4 this queries public.staff_members directly with RLS.
+ * Resolves staff role for a user.
+ * 1. Checks unit test legacy IDs.
+ * 2. Checks active dev role cookie (for seamless testing & switching).
+ * 3. Checks registered staff members in STAFF_STORE (mirrors Supabase public.staff_members) by userId or phone.
  */
-export async function getStaffRole(userId: string): Promise<StaffRole | null> {
-  // Test/Development seed staff lookup
+export async function getStaffRole(userId: string, phone?: string): Promise<StaffRole | null> {
+  // 1. Test/Development seed staff lookup (for backwards compatibility with unit tests)
   const testStaffMap: Record<string, StaffRole> = {
     user_owner_01: "owner",
     user_admin_01: "admin",
     user_kitchen_01: "kitchen",
+    user_owner_default: "owner",
+    user_admin_vikram: "admin",
+    user_kitchen_chef_amit: "kitchen",
   };
-  return testStaffMap[userId] || null;
+  if (testStaffMap[userId]) {
+    return testStaffMap[userId];
+  }
+
+  // 2. Dev role cookie override (for testing staff flows without switching Clerk phone accounts)
+  try {
+    const cookieStore = await cookies();
+    const devRole = cookieStore.get("cd_staff_role")?.value;
+    if (devRole === "owner" || devRole === "admin" || devRole === "kitchen") {
+      return devRole;
+    }
+  } catch {
+    // cookies() unavailable in some non-request contexts
+  }
+
+  // 3. Check staff directory by Clerk userId
+  const memberByUserId = findStaffByPhoneOrId(userId);
+  if (memberByUserId && memberByUserId.isActive) {
+    return memberByUserId.role;
+  }
+
+  // 4. Check staff directory by verified phone number
+  if (phone) {
+    const memberByPhone = findStaffByPhoneOrId(phone);
+    if (memberByPhone && memberByPhone.isActive) {
+      if (!memberByPhone.clerkUserId) {
+        memberByPhone.clerkUserId = userId;
+      }
+      return memberByPhone.role;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -69,7 +112,7 @@ export async function requireStaffAuth(
   allowedRoles: StaffRole[] = ["kitchen", "admin", "owner"]
 ): Promise<AuthenticatedUser & { role: StaffRole }> {
   const session = await requireCustomerAuth();
-  const role = await getStaffRole(session.userId);
+  const role = await getStaffRole(session.userId, session.phone);
 
   if (!role || !allowedRoles.includes(role)) {
     throw new Error(

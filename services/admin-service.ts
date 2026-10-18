@@ -1,7 +1,15 @@
 "use server";
 
 import crypto from "crypto";
-import { requireStaffAuth } from "@/lib/auth/server";
+import { cookies } from "next/headers";
+import { requireStaffAuth, getAuthSession, getStaffRole } from "@/lib/auth/server";
+import {
+  STAFF_STORE,
+  getAllStaffMembers,
+  addStaffMemberRecord,
+  toggleStaffMemberActive,
+  type StaffRole,
+} from "@/lib/auth/staff-store";
 import { MENU_ITEMS, type MenuItem } from "@/lib/menu-data";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 import { type OrderStatus } from "@/components/ui/status-badge";
@@ -31,41 +39,6 @@ const TABLES_STORE: Array<{
   { id: "d0000000-0000-0000-0000-000000000004", label: "Table 4", token: "cd_tbl_tok_04w6d", isActive: true },
   { id: "d0000000-0000-0000-0000-000000000005", label: "Table 5", token: "cd_tbl_tok_05v5e", isActive: true },
   { id: "d0000000-0000-0000-0000-000000000006", label: "Table 6", token: "cd_tbl_tok_06u4f", isActive: true },
-];
-
-// Active Staff Members mapping (mirrors database seed)
-const STAFF_STORE: Array<{
-  id: string;
-  clerkUserId: string;
-  name: string;
-  phone: string;
-  role: "kitchen" | "admin" | "owner";
-  isActive: boolean;
-}> = [
-  {
-    id: "s0000000-0000-0000-0000-000000000001",
-    clerkUserId: "user_owner_default",
-    name: "Cafe Owner",
-    phone: "+919876543210",
-    role: "owner",
-    isActive: true,
-  },
-  {
-    id: "s0000000-0000-0000-0000-000000000002",
-    clerkUserId: "user_admin_vikram",
-    name: "Vikram Admin",
-    phone: "+919876543211",
-    role: "admin",
-    isActive: true,
-  },
-  {
-    id: "s0000000-0000-0000-0000-000000000003",
-    clerkUserId: "user_kitchen_chef_amit",
-    name: "Chef Amit",
-    phone: "+919876543212",
-    role: "kitchen",
-    isActive: true,
-  },
 ];
 
 export async function getAllAdminOrders(statusFilter?: OrderStatus): Promise<OrderRecord[]> {
@@ -148,9 +121,60 @@ export async function rotateTableToken(tableId: string): Promise<string> {
 }
 
 export async function getStaffList() {
-  const staff = await requireStaffAuth();
+  await requireStaffAuth();
+  return getAllStaffMembers();
+}
+
+export async function addStaffMember(input: {
+  name: string;
+  phone: string;
+  role: StaffRole;
+}) {
+  const staff = await requireStaffAuth(["admin", "owner"]);
   if (staff.role !== "owner") {
-    // Admins see staff, but owner has full list
+    throw new Error("UNAUTHORIZED: Only the cafe owner can add staff members.");
   }
-  return STAFF_STORE;
+  return addStaffMemberRecord(input);
+}
+
+export async function toggleStaffStatus(staffId: string) {
+  const staff = await requireStaffAuth(["admin", "owner"]);
+  if (staff.role !== "owner") {
+    throw new Error("UNAUTHORIZED: Only the cafe owner can modify staff status.");
+  }
+  return toggleStaffMemberActive(staffId);
+}
+
+export async function setDevStaffRole(role: StaffRole | "none") {
+  const cookieStore = await cookies();
+  if (role === "none") {
+    cookieStore.delete("cd_staff_role");
+  } else {
+    cookieStore.set("cd_staff_role", role, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+    });
+  }
+  return { success: true, role };
+}
+
+export async function getCurrentStaffStatus() {
+  const session = await getAuthSession();
+  if (!session) {
+    return {
+      isAuthenticated: false,
+      userId: null,
+      phone: null,
+      role: null,
+    };
+  }
+
+  const role = await getStaffRole(session.userId, session.phone);
+  return {
+    isAuthenticated: true,
+    userId: session.userId,
+    phone: session.phone || null,
+    role: role || null,
+  };
 }
