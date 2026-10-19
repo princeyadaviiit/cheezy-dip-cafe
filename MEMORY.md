@@ -1,8 +1,8 @@
 # MEMORY.md (Cheezy dip cafe)
-Last updated: 2026-10-18 00:54 IST by Lead AI Engineer (Antigravity)
+Last updated: 2026-10-19 23:31 IST by Lead AI Engineer (Antigravity)
 
 ## 1. Project snapshot
-Cheezy dip cafe is a mobile-first single-cafe ordering web application. It features an animated, food-centric landing page with a public, price-visible "View Menu" and an "Order" path gated by Clerk phone OTP authentication. The product supports two distinct order journeys: dine-in via permanent table QR codes (pay at counter) and delivery within an authorized area (prepaid via Razorpay). Kitchen, admin, and owner interfaces operate seamlessly on mobile phones with in-app realtime and audio order alerts. Phases 0 through 9 are fully complete, verified, and tagged in git (`phase-0` ... `phase-9`). The repository is code-complete, hardened, and ready for owner go-live handover.
+Cheezy dip cafe is a mobile-first single-cafe ordering web application. All client requirements (direct admin passkey access, customer dine-in restriction via table QR codes, printable table QR sheets, Telegram Bot realtime notifications and controls with chat ID allowlist, clean itemized billing without tax/GST/FSSAI, Razorpay payments, and clean production setup docs) are fully delivered, verified, and pushed to `origin/main` at commit `1af3193`. Git tree is 100% clean and push protection issues are fully resolved.
 
 ## 2. Phase tracker
 
