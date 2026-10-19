@@ -9,6 +9,17 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_mock_key"
+      CLERK_SECRET_KEY: "sk_test_mock_key"
+      NEXT_PUBLIC_SUPABASE_URL: "https://mock.supabase.co"
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "mock_anon_key"
+      SUPABASE_SERVICE_ROLE_KEY: "mock_service_key"
+      NEXT_PUBLIC_RAZORPAY_KEY_ID: "rzp_test_mock"
+      RAZORPAY_KEY_SECRET: "cheezy_dip_razorpay_secret_test_32_bytes"
+      TABLE_COOKIE_SECRET: "mock_cookie_secret_at_least_32_bytes_long"
+      ADMIN_GATE_PASSKEY: "cheezy2026"
     steps:
       - uses: actions/checkout@v4
 
@@ -32,13 +43,3 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_mock_key"
-          CLERK_SECRET_KEY: "sk_test_mock_key"
-          NEXT_PUBLIC_SUPABASE_URL: "https://mock.supabase.co"
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "mock_anon_key"
-          SUPABASE_SERVICE_ROLE_KEY: "mock_service_key"
-          NEXT_PUBLIC_RAZORPAY_KEY_ID: "rzp_test_mock"
-          RAZORPAY_KEY_SECRET: "mock_secret"
-          TABLE_COOKIE_SECRET: "mock_cookie_secret_at_least_32_bytes_long"

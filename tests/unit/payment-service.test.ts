@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import crypto from "crypto";
 
 // Mock server-only in Vitest jsdom test runner
 vi.mock("server-only", () => ({}));
@@ -53,8 +54,7 @@ describe("Razorpay Signature Verification", () => {
     const paymentId = "pay_test_rzp_456";
 
     // Generate genuine signature
-    const crypto = require("crypto");
-    const secret = "cheezy_dip_razorpay_secret_test_32_bytes";
+    const secret = process.env.RAZORPAY_KEY_SECRET || "cheezy_dip_razorpay_secret_test_32_bytes";
     const validSignature = crypto
       .createHmac("sha256", secret)
       .update(`${orderId}|${paymentId}`)

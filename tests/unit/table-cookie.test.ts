@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import crypto from "crypto";
 import { signTableContext, verifyTableContext } from "@/lib/auth/table-cookie";
 
 describe("Table Context Cookie Signer & Verifier", () => {
@@ -60,7 +61,6 @@ describe("Table Context Cookie Signer & Verifier", () => {
       issuedAt: Date.now() - 7 * 60 * 60 * 1000,
     };
     // Sign manually with SECRET
-    const crypto = require("crypto");
     const jsonStr = JSON.stringify(expiredData);
     const secret =
       process.env.TABLE_COOKIE_SECRET ||
