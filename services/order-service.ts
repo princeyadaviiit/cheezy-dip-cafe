@@ -14,6 +14,7 @@ export type { OrderRecord };
 
 import { PlaceOrderSchema, type PlaceOrderInput } from "@/lib/orders/order-schema";
 export type { PlaceOrderInput };
+import { sendTelegramOrderAlert } from "@/services/telegram-service";
 
 export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord> {
   const user = await requireCustomerAuth();
@@ -96,6 +97,13 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
 
   ORDERS_STORE.set(orderId, orderRecord);
   IDEMPOTENCY_STORE.set(idempotencyKeyCompound, orderId);
+
+  // Send realtime Telegram alert to admin bot if order is immediately placed (dine-in)
+  if (orderRecord.orderStatus === "placed") {
+    sendTelegramOrderAlert(orderRecord).catch((err) =>
+      console.error("[Telegram] Dine-in order alert dispatch error:", err)
+    );
+  }
 
   return orderRecord;
 }

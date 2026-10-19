@@ -1,213 +1,190 @@
-# Cheezy Dip Cafe: Production Setup & Subdomain Hosting Guide
+# Cheezy Dip Cafe - Production Deployment & Client Handover Guide
 
-This guide explains how to host the **Cheezy Dip Cafe** ordering platform with a completely separated **Admin & Kitchen KDS Dashboard** on a subdomain (e.g. `admin.cheezydipcafe.com`) while keeping the **Customer Ordering App** clean, fast, and accessible on the primary domain (`cheezydipcafe.com`).
-
----
-
-## 1. Architecture Overview
-
-```
-                      ┌──────────────────────────────────────┐
-                      │            DNS / Cloudflare          │
-                      └──────────────────┬───────────────────┘
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 │                                               │
-                 ▼                                               ▼
-     Primary Domain:                                 Admin Subdomain:
-  cheezydipcafe.com / www                         admin.cheezydipcafe.com
-                 │                                               │
-                 ▼                                               ▼
-   ┌───────────────────────────┐                   ┌───────────────────────────┐
-   │    Customer App           │                   │  Admin Gatekeeper Screen  │
-   │  • Animated Landing Page  │                   │  • Master Passkey Entry   │
-   │  • Public View Menu       │                   │  • 30-Day Signed Cookie   │
-   │  • Table Dine-In QR Flow  │                   └─────────────┬─────────────┘
-   │  • Prepaid Delivery (GPS) │                                 │ Unlocked
-   │  • Live Customer Tracking │                                 ▼
-   │  • Clerk Auth Profile     │                   ┌───────────────────────────┐
-   └───────────────────────────┘                   │  Unified Admin & KDS Hub  │
-                                                   │  • Realtime Chime Popup   │
-                                                   │  • Kitchen Live KDS Queue │
-                                                   │  • 1-Click Order Approval │
-                                                   │  • Google Maps GPS Nav    │
-                                                   │  • Staff & Admins Manager │
-                                                   │  • Menu 86s Availability  │
-                                                   │  • Dynamic QR Rotator     │
-                                                   │  • Sales & Daily Reports  │
-                                                   └───────────────────────────┘
-```
+This comprehensive guide details the exact steps to deploy **Cheezy Dip Cafe** to production, set up custom subdomains, configure the Telegram Admin Bot with authorized chat IDs, print physical table QR codes, and hand over the live platform to the cafe owner.
 
 ---
 
-## 2. Key Security Features
+## 1. Architecture & Domain Structure
 
-1. **Master Gatekeeper Passkey (`ADMIN_GATE_PASSKEY`)**:
-   - Before any Clerk sign-in form is displayed on `admin.*`, visitors must enter the cafe entrance passkey (default: `cheezy2026`).
-   - Once verified, an HMAC-SHA256 signed `httpOnly` cookie (`cd_admin_gate`) is stored for 30 days.
-   - Unauthorized public users cannot view or attempt logins against the admin routes.
-2. **Clerk Authentication Separation**:
-   - Customer UI exposes only customer profile links and order history.
-   - Staff roles (`admin`, `owner`, `kitchen`) are validated strictly from `staff_members` (via `getStaffRole()` in server actions and middleware).
-3. **No-COD & Strict Cancellation Policy**:
-   - All delivery orders require 100% online prepayment via Razorpay.
-   - Strict no-cancellation policy notice is enforced and clearly displayed at checkout.
-4. **GPS Delivery Geolocation**:
-   - Customers can click "📍 Use My Current Location" to pin their coordinates.
-   - Admin and delivery drivers get a direct **"🗺️ Open in Google Maps"** navigation button with pre-filled coordinates.
+The application supports unified single-domain hosting or subdomain isolation:
 
----
-
-## 3. Environment Variables
-
-Create `.env.local` for local development or enter these in your Vercel / host environment settings:
-
-```env
-# Application Base URL
-NEXT_PUBLIC_APP_URL=https://cheezydipcafe.com
-
-# Clerk Authentication (Get from https://dashboard.clerk.com)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/order
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/order
-
-# Admin Gatekeeper Passkey & Cookie Secret
-ADMIN_GATE_PASSKEY=cheezy2026
-TABLE_COOKIE_SECRET=your_secure_random_32_character_secret_here
-
-# Supabase (Database & Storage)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-# Razorpay (Test / Live credentials)
-NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...
-RAZORPAY_KEY_SECRET=your_razorpay_secret_here
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_here
-
-# Cafe Support Contact
-NEXT_PUBLIC_CAFE_PHONE=+919876543210
-```
+- **Customer Web App:** `https://cheezydipcafe.com` (or `https://yourdomain.com`)
+  - Animated landing page, visual digital menu, category filters, cart, and Razorpay prepaid checkout.
+  - Strictly **Home Delivery** for online visitors (no unauthorized Dine-In option).
+  - **Dine-In Mode** is cryptographically unlocked *only* when a customer physically scans a table's QR sticker (`/t/[token]`).
+- **Admin & Kitchen KDS Portal:** `https://admin.cheezydipcafe.com` (or `/admin`)
+  - Protected by a Master Gatekeeper Passkey.
+  - Live incoming order chimes & pop-up modal.
+  - Kitchen Display System (Incoming, In Prep, Ready, All Active).
+  - Staff management, Menu 86'ing (stock toggles), Sales reports, and Table QR code generator.
+- **Telegram Bot Assistant:**
+  - Realtime order notifications pushed directly to authorized cafe managers.
+  - Inline buttons to accept, cook, mark ready, serve, or dispatch orders in 1 tap.
+  - Strict allowlist authorization: only approved Telegram User/Chat IDs can view data or trigger buttons.
 
 ---
 
-## 4. Hosting on Vercel with Subdomains (Recommended)
+## 2. Environment Variables Reference
 
-### Step 1: Add Both Domains to Your Vercel Project
-1. Go to **Vercel Dashboard** → Select your `cheezy-dip-cafe` project → **Settings** → **Domains**.
-2. Add the primary domain: `cheezydipcafe.com` (and redirect `www.cheezydipcafe.com` to it).
-3. Add the admin subdomain: `admin.cheezydipcafe.com`.
+Create a `.env.production` file on your host (e.g. Vercel / Railway / AWS) populated with the following keys:
 
-### Step 2: DNS Configuration
-Add the DNS records at your domain registrar (Cloudflare, GoDaddy, Namecheap, etc.):
-
-| Type | Name | Content / Value | Proxy Status |
-| :--- | :--- | :--- | :--- |
-| **A** | `@` | `76.76.21.21` (Vercel IP) | DNS Only (or Proxied) |
-| **CNAME** | `www` | `cname.vercel-dns.com` | DNS Only (or Proxied) |
-| **CNAME** | `admin` | `cname.vercel-dns.com` | DNS Only (or Proxied) |
-
-### Step 3: Clerk Cookie & Multi-Domain Configuration
-1. In the **Clerk Dashboard** → **Configure** → **Domains**:
-   - Set the Primary Domain to: `cheezydipcafe.com`
-   - If using Clerk Multi-domain feature, enable Satellite domains and add `admin.cheezydipcafe.com`.
-   - Alternatively, enable **Shared Root Domain Cookies** in Clerk:
-     - Set Cookie Domain to: `.cheezydipcafe.com` (leading dot).
-     - This automatically shares the Clerk session between `cheezydipcafe.com` and `admin.cheezydipcafe.com` seamlessly!
-
----
-
-## 5. Hosting with Nginx / Custom VPS (Docker or Node PM2)
-
-If hosting on a Linux VPS (Ubuntu/Debian) using Node PM2 or Docker:
-
-### Nginx Configuration File (`/etc/nginx/sites-available/cheezydipcafe.conf`)
-
-```nginx
-# 1. Customer Application (cheezydipcafe.com & www)
-server {
-    server_name cheezydipcafe.com www.cheezydipcafe.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    listen 80;
-}
-
-# 2. Admin & Kitchen Dashboard Subdomain (admin.cheezydipcafe.com)
-server {
-    server_name admin.cheezydipcafe.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    listen 80;
-}
-```
-
-### Enable SSL with Let's Encrypt Certbot
 ```bash
-sudo certbot --nginx -d cheezydipcafe.com -d www.cheezydipcafe.com -d admin.cheezydipcafe.com
+# ==============================================================================
+# CLERK AUTHENTICATION (https://clerk.com)
+# ==============================================================================
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_WEBHOOK_SECRET=
+
+# ==============================================================================
+# SUPABASE DATABASE & REALTIME (https://supabase.com)
+# ==============================================================================
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# ==============================================================================
+# RAZORPAY PAYMENTS (https://dashboard.razorpay.com)
+# ==============================================================================
+NEXT_PUBLIC_RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+
+# ==============================================================================
+# APP CORE & SECURITY
+# ==============================================================================
+NEXT_PUBLIC_SITE_URL=https://your-cafe-domain.com
+TABLE_COOKIE_SECRET=
+CRON_SECRET=
+
+# ==============================================================================
+# ADMIN SUBDOMAIN & PORTAL GATEKEEPER
+# ==============================================================================
+ADMIN_GATE_PASSKEY=
+ADMIN_GATE_SECRET=
+
+# ==============================================================================
+# TELEGRAM BOT INTEGRATION
+# ==============================================================================
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ADMIN_CHAT_ID=
+
+# ==============================================================================
+# WEB PUSH NOTIFICATIONS (Optional)
+# ==============================================================================
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:admin@your-cafe-domain.com
 ```
+
+> [!IMPORTANT]
+> To generate high-entropy secrets for `TABLE_COOKIE_SECRET`, `ADMIN_GATE_SECRET`, and `CRON_SECRET`, run:
+> ```bash
+> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> ```
 
 ---
 
-## 6. Local Testing with Subdomains
+## 3. Subdomain Setup (e.g. `admin.cheezydipcafe.com`)
 
-To test subdomain routing on your local development machine:
+To host the admin portal on an isolated subdomain:
 
-### Option A: Using `admin.localhost:3000`
-Next.js supports subdomain testing on localhost directly in modern browsers:
-- Visit `http://localhost:3000` → Loads Customer Storefront.
-- Visit `http://admin.localhost:3000` → Loads Admin Gatekeeper & KDS Dashboard.
+### Step 3.1: DNS Configuration
+In your DNS provider (Cloudflare, GoDaddy, Namecheap):
+1. Add an `A` or `CNAME` record for `@` pointing to `cname.vercel-dns.com` (or your host IP).
+2. Add a `CNAME` record for `admin` pointing to `cname.vercel-dns.com`.
 
-### Option B: Using `hosts` file
-On Windows (`C:\Windows\System32\drivers\etc\hosts`) or macOS/Linux (`/etc/hosts`), add:
-```
-127.0.0.1  cheezydip.local
-127.0.0.1  admin.cheezydip.local
-```
-Then visit `http://admin.cheezydip.local:3000` in your browser.
+### Step 3.2: Vercel Domain Linking
+1. Open your project on Vercel -> **Settings** -> **Domains**.
+2. Add `cheezydipcafe.com`.
+3. Add `admin.cheezydipcafe.com`.
+Both domains point to the same deployment. The built-in middleware routes traffic seamlessly, while the Master Passkey protects the `/admin` portal on any device.
 
 ---
 
-## 7. How Subdomain Rewriting Works in Code
+## 4. Telegram Admin Bot Setup (Order Alerts & Control)
 
-The Next.js middleware in `proxy.ts` detects the incoming request host:
-```typescript
-const host = req.headers.get("host") || "";
-const isSubdomainAdmin = host.startsWith("admin.") || host.startsWith("admin-");
+### Step 4.1: Create your Telegram Bot with BotFather
+1. Open Telegram and search for `@BotFather`.
+2. Send `/newbot`.
+3. Provide a friendly name (e.g., `Cheezy Dip Cafe Alert Bot`).
+4. Choose a unique username ending in `bot` (e.g., `CheezyDipCafe_bot`).
+5. Copy the generated **HTTP API Token** and set it as `TELEGRAM_BOT_TOKEN` in your environment.
 
-// When visiting root of admin subdomain, automatically routes to /admin
-if (isSubdomainAdmin && req.nextUrl.pathname === "/") {
-  const adminUrl = new URL("/admin", req.url);
-  return NextResponse.rewrite(adminUrl);
-}
+### Step 4.2: Retrieve Authorized Telegram Chat IDs
+For security, the bot only responds to and accepts button actions from allowlisted Telegram accounts:
+1. Search for `@userinfobot` on Telegram and click **Start**.
+2. Note your **Id** (e.g., `123456789`).
+3. If multiple owners/managers need access, separate their IDs with a comma:
+   ```bash
+   TELEGRAM_ADMIN_CHAT_ID=YOUR_CHAT_ID_1,YOUR_CHAT_ID_2
+   ```
+
+### Step 4.3: Register Telegram Webhook
+To enable Telegram to deliver button taps ("Accept & Cook", "Mark Ready", "Served", "Delivered") back to your server, execute this curl command in your terminal:
+
+```bash
+curl -F "url=https://cheezydipcafe.com/api/telegram/webhook" https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook
 ```
 
-When visiting `admin.cheezydipcafe.com`:
-1. Middleware transparently serves `/admin`.
-2. The gatekeeper checks for the signed `cd_admin_gate` cookie.
-3. If not unlocked, prompts for the master passkey (`ADMIN_GATE_PASSKEY`).
-4. Once verified, grants full access to the unified Admin Dashboard and Kitchen KDS with real-time order alerts.
+You will receive:
+```json
+{"ok":true,"result":true,"description":"Webhook was set"}
+```
+
+### Step 4.4: Verify the Bot
+1. Open your new bot in Telegram and send `/start`.
+2. The bot will recognize you as an authorized administrator and display the commands list:
+   - `/orders`: Shows active kitchen orders with interactive inline buttons.
+   - `/sales`: Realtime count of orders and gross revenue today.
+   - When any customer places a dine-in or delivery order, an instant alert will chime in your chat with 1-tap action buttons!
+
+---
+
+## 5. Physical Table QR Codes (Printing & Setup)
+
+1. Open the Admin Portal (`https://cheezydipcafe.com/admin` or `https://admin.cheezydipcafe.com`).
+2. Enter your `ADMIN_GATE_PASSKEY` to unlock the dashboard.
+3. Click on the **Table QRs** tab.
+4. Each cafe table (Table 1 through Table 6) features:
+   - High-contrast scannable QR code.
+   - **Print** button: Prints a clean, branded standalone table sticker with cut lines.
+   - **Download PNG** button: Saves a high-res image for custom graphic printing.
+   - **Print All (Sheet)**: Opens an A4 sticker sheet layout with all 6 table stickers ready to print on label sticker paper.
+   - **Rotate Token**: In case a QR sticker is photographed or damaged, click rotate to instantly cycle its cryptographic token without affecting other tables.
+
+---
+
+## 6. Razorpay Payments Setup (Delivery Orders)
+
+1. Sign up or log into [Razorpay Dashboard](https://dashboard.razorpay.com).
+2. Complete KYC and activate live mode.
+3. Go to **Settings** -> **API Keys** -> Generate **Key ID** and **Key Secret**.
+4. Set `NEXT_PUBLIC_RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+5. Go to **Settings** -> **Webhooks** -> **Add New Webhook**:
+   - URL: `https://cheezydipcafe.com/api/webhooks/razorpay`
+   - Secret: Enter your chosen `RAZORPAY_WEBHOOK_SECRET`.
+   - Active Events: Check `payment.captured` and `payment.failed`.
+
+---
+
+## 7. Thermal Billing & Invoicing
+
+- Cheezy Dip Cafe's bill generator is built specifically for cafe operations:
+  - Accessible from the **Admin & KDS** dashboard and the **All Orders** list via the **Bill** button.
+  - Automatically formats for standard 58mm / 80mm thermal receipt printers.
+  - Clean layout showing cafe branding, table/customer contact details, items breakdown, and grand total without confusing taxes or GST numbers.
+
+---
+
+## 8. Client Handover Checklist
+
+Before handing over the live platform to the client:
+
+- [ ] Confirm all production environment variables are configured on the hosting platform.
+- [ ] Test the Admin Master Passkey login on a mobile phone (ensure full dashboard unlocks seamlessly).
+- [ ] Test a live test transaction via Razorpay for a delivery order.
+- [ ] Scan Table 1 QR code with a phone camera, confirm it routes to `/order?table=Table%201` and enables Pay-at-Counter dine-in mode.
+- [ ] Send `/start` to the Telegram bot from the owner's phone to verify authorization.
+- [ ] Print table QR sticker sheet from the **Table QRs** tab and affix stickers to cafe tables.
+- [ ] Train cafe staff on using the mobile KDS display to tap **Approve & Cook** and **Mark Ready**.

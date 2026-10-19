@@ -51,17 +51,17 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - **Styling**: Tailwind CSS v4 with CSS variables
 - **Auth**: Clerk Free Tier (`@clerk/nextjs` 7.9.17) + 30-day HMAC-SHA256 Master Gate Passkey
 - **Database**: Supabase PostgreSQL (`@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7)
-- **Test Runner**: Vitest 5.0.5 (79 tests passing across 14 suites)
+- **Test Runner**: Vitest 5.0.5 (86 tests passing across 15 suites)
 - **E2E Runner**: Playwright 1.58.2 (12 tests passing across mobile-360 & mobile-390)
 - **Linter**: ESLint 9.39.5 (0 errors, 0 warnings)
 
 ## 6. Commands run and results
 
-| 2026-10-19 | `npm run lint` | Pass: 0 errors, 0 warnings (React Compiler purity verified) |
+| 2026-10-19 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
 | 2026-10-19 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-19 | `npm test` | Pass: 14 test files, 79 tests passed (0 failed) |
+| 2026-10-19 | `npm test` | Pass: 15 test files, 86 tests passed (0 failed) in 5.82s |
 | 2026-10-19 | `npx playwright test` | Pass: 12 mobile E2E tests passed (6 on mobile-360, 6 on mobile-390) |
-| 2026-10-19 | `npm run build` | Pass: 20 static/dynamic routes compiled cleanly with Turbopack |
+| 2026-10-19 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
 - [x] RLS enabled on all tables; matrix in section 3 executed and passing (`tests/unit/authorization-matrix.test.ts`)
@@ -73,6 +73,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Cron reconciliation tested (`/api/cron/reconcile-payments`)
 - [x] Table QR abuse controls tested, token rotation tested (`tests/unit/table-cookie.test.ts`)
 - [x] Admin Entrance Gatekeeper protected by master passkey (`ADMIN_GATE_PASSKEY`) and 30-day HMAC-SHA256 signed cookie
+- [x] Telegram Bot API protected with strict chat ID allowlist (`TELEGRAM_ADMIN_CHAT_ID`) rejecting unauthorized messages/callbacks
 - [x] Subdomain isolation: customer navigation strictly customer-facing; staff links eliminated from customer header/footer/account
 - [x] India-only SMS allowlist confirmed; bot protection on
 - [x] CSP and security headers verified in `next.config.ts`
@@ -82,6 +83,14 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-19 | Admin Passkey Direct Access, Customer Dine-in Table Restriction, Table QRs & Telegram Bot:
+  1. Fix Admin Panel Authentication & State Updates: Resolved unauthorized error flood by having master passkey gatekeeper grant owner role (`role: "owner"`, `userId: "admin_master_passkey"`) in `requireStaffAuth()` and `getCurrentStaffStatus()`. Master passkey unlocks dashboard directly without broken Clerk staff loops. Fixed order state machine transitions (`ready -> delivered`, `ready -> completed`) allowing smooth 1-tap state updates.
+  2. Customer Dine-In Restriction: Removed manual Dine-In switcher from public customer order page (`app/(customer)/order/page.tsx`). Online visitors default to Doorstep Delivery. Dine-in activates exclusively via physical QR scan (`/t/[token]`).
+  3. Scannable & Printable Table QR Codes (`components/qr/table-qr.tsx`): Built visual SVG QR code generator with single-table branded sticker print, high-res PNG download, and A4 multi-table sticker sheet (`AllTablesPrintSheet`) for Tables 1 through 6 in the Admin "Table QRs" tab.
+  4. Telegram Bot Integration (`services/telegram-service.ts` & `/api/telegram/webhook`): Realtime order alert dispatched to authorized managers with inline keyboard actions (`Approve & Cook`, `Mark Ready`, `Serve to Table`, `Out for Delivery`, `Mark Delivered`). Strict authorization allowlist (`TELEGRAM_ADMIN_CHAT_ID`) ensures unauthorized chat IDs are rejected.
+  5. Billing Header Polish: Removed `hello@cheezydipcafe.com` from receipt modal (`components/billing/bill-modal.tsx`), displaying clean cafe branding.
+  6. Documentation & Environment: Updated `.env.example` with Telegram and gate variables, and authored comprehensive client deployment and handover guide in `docs/setup.md`.
+  7. Verification: 15 Vitest test suites (86 tests) passing in 5.82s, TypeScript typecheck: 0 errors, ESLint: 0 errors, Turbopack build: 21/21 routes compiled. | app/(staff)/admin/, components/qr/, services/telegram-service.ts, app/api/telegram/, docs/setup.md, .env.example
 - 2026-10-19 | Razorpay Payment Verification Flow, Tax/GST & FSSAI Removal, and Playwright Suite:
   1. Complete Razorpay Payment & Verification Engine: Added `initiateDeliveryPayment`, `verifyDeliveryCheckoutPayment` (verifying cryptographic HMAC-SHA256 signature against key secret before marking paid), and `simulateTestModePayment` to `services/payment-service.ts`. Delivery orders on `/order/orders/[id]` display an interactive "Payment Required to Start Cooking" card with a 1-click Razorpay payment button (`min-h-[48px]`), verifying the signature and updating status to "Paid via Razorpay (Prepaid Verified)" to release the order to the kitchen.
   2. Removal of Taxes, GST & FSSAI: Removed all tax, GST, CGST, SGST, FSSAI, and GSTIN numbers across `components/billing/bill-modal.tsx`, cart breakdown (`app/(customer)/order/cart/page.tsx`), footer (`app/(public)/page.tsx`), contact details (`app/(public)/contact/page.tsx`), and terms (`app/(public)/terms/page.tsx`), replacing them with authentic 100% Pure Vegetarian Cafe branding and clean itemized billing.

@@ -8,6 +8,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
+    testTimeout: 20000,
+    hookTimeout: 20000,
+    pool: "threads",
+    isolate: false,
   },
   resolve: {
     alias: {

@@ -63,29 +63,23 @@ function CustomerOrderContent() {
           </span>
         </div>
       ) : (
-        <div className="flex items-center justify-between p-1 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)]">
-          <button
-            type="button"
-            onClick={() => setOrderType("dine_in")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors min-h-[44px] cursor-pointer ${
-              orderType === "dine_in"
-                ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] shadow-xs"
-                : "text-[var(--text-muted)] hover:text-[var(--text)]"
-            }`}
-          >
-            🍽️ Dine-In
-          </button>
-          <button
-            type="button"
-            onClick={() => setOrderType("delivery")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors min-h-[44px] cursor-pointer ${
-              orderType === "delivery"
-                ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] shadow-xs"
-                : "text-[var(--text-muted)] hover:text-[var(--text)]"
-            }`}
-          >
-            🛵 Delivery
-          </button>
+        <div className="p-3 bg-[var(--bg-raised)] rounded-xl border border-[var(--border)] flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base font-bold">
+              🛵
+            </span>
+            <div>
+              <p className="text-xs font-bold text-[var(--text)]">
+                Doorstep Home Delivery
+              </p>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Hot & fresh • Dine-in available at cafe via table QR
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            Online Prepaid
+          </span>
         </div>
       )}
 

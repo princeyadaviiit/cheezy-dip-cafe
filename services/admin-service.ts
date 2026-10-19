@@ -155,8 +155,28 @@ export async function setDevStaffRole(role: StaffRole | "none") {
   return { success: true, role };
 }
 
-export async function getCurrentStaffStatus() {
+export async function getCurrentStaffStatus(): Promise<{
+  isAuthenticated: boolean;
+  userId: string | null;
+  phone: string | null;
+  email: string | null;
+  name: string | null;
+  role: StaffRole | null;
+}> {
+  const isUnlocked = await checkAdminGateUnlocked();
   const session = await getAuthSession();
+
+  if (isUnlocked) {
+    return {
+      isAuthenticated: true,
+      userId: session?.userId || "admin_master_passkey",
+      phone: session?.phone || "+919876543210",
+      email: session?.email || "owner@cheezydipcafe.com",
+      name: session?.name || "Cafe Administrator",
+      role: "owner" as StaffRole,
+    };
+  }
+
   if (!session) {
     return {
       isAuthenticated: false,

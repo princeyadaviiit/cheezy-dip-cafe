@@ -7,6 +7,8 @@ import {
   type StaffRole,
 } from "./staff-store";
 
+import { checkAdminGateUnlocked } from "./admin-gate";
+
 export type { StaffRole };
 
 export interface AuthenticatedUser {
@@ -65,16 +67,27 @@ export async function requireCustomerAuth(): Promise<AuthenticatedUser> {
 
 /**
  * Resolves staff role for a user.
- * 1. Checks unit test legacy IDs.
- * 2. Checks active dev role cookie (for testing & switching).
- * 3. Checks registered staff members in STAFF_STORE (mirrors Supabase public.staff_members) by userId, email, or phone.
+ * 1. Checks if Master Gate Passkey is unlocked (grants owner/admin).
+ * 2. Checks unit test legacy IDs.
+ * 3. Checks active dev role cookie (for testing & switching).
+ * 4. Checks registered staff members in STAFF_STORE by userId, email, or phone.
  */
 export async function getStaffRole(
   userId: string,
   phone?: string,
   email?: string
 ): Promise<StaffRole | null> {
-  // 1. Test/Development seed staff lookup (for backwards compatibility with unit tests)
+  // 1. Check Master Gate Passkey cookie
+  try {
+    const isGateUnlocked = await checkAdminGateUnlocked();
+    if (isGateUnlocked) {
+      return "owner";
+    }
+  } catch {
+    // cookies() unavailable in some non-request contexts
+  }
+
+  // 2. Test/Development seed staff lookup (for backwards compatibility with unit tests)
   const testStaffMap: Record<string, StaffRole> = {
     user_owner_01: "owner",
     user_admin_01: "admin",
@@ -87,7 +100,7 @@ export async function getStaffRole(
     return testStaffMap[userId];
   }
 
-  // 2. Dev role cookie override (for testing staff flows without switching Clerk accounts)
+  // 3. Dev role cookie override (for testing staff flows without switching Clerk accounts)
   try {
     const cookieStore = await cookies();
     const devRole = cookieStore.get("cd_staff_role")?.value;
@@ -98,13 +111,13 @@ export async function getStaffRole(
     // cookies() unavailable in some non-request contexts
   }
 
-  // 3. Check staff directory by Clerk userId
+  // 4. Check staff directory by Clerk userId
   const memberByUserId = findStaffByIdentifier(userId);
   if (memberByUserId && memberByUserId.isActive) {
     return memberByUserId.role;
   }
 
-  // 4. Check staff directory by verified email
+  // 5. Check staff directory by verified email
   if (email) {
     const memberByEmail = findStaffByIdentifier(email);
     if (memberByEmail && memberByEmail.isActive) {
@@ -115,7 +128,7 @@ export async function getStaffRole(
     }
   }
 
-  // 5. Check staff directory by verified phone number
+  // 6. Check staff directory by verified phone number
   if (phone) {
     const memberByPhone = findStaffByIdentifier(phone);
     if (memberByPhone && memberByPhone.isActive) {
@@ -131,10 +144,28 @@ export async function getStaffRole(
 
 /**
  * Enforces that the caller has at least one of the required staff roles.
+ * Supports Master Gate Passkey authentication directly without requiring Clerk login.
  */
 export async function requireStaffAuth(
   allowedRoles: StaffRole[] = ["kitchen", "admin", "owner"]
 ): Promise<AuthenticatedUser & { role: StaffRole }> {
+  // 1. If Master Gate passkey is unlocked, caller is automatically authenticated with owner privileges
+  try {
+    const isGateUnlocked = await checkAdminGateUnlocked();
+    if (isGateUnlocked) {
+      const session = await getAuthSession();
+      return {
+        userId: session?.userId || "admin_master_passkey",
+        phone: session?.phone || "+919876543210",
+        email: session?.email || "owner@cheezydipcafe.com",
+        name: session?.name || "Cafe Administrator",
+        role: "owner",
+      };
+    }
+  } catch {
+    // Continue to standard session check
+  }
+
   const session = await requireCustomerAuth();
   const role = await getStaffRole(session.userId, session.phone, session.email);
 

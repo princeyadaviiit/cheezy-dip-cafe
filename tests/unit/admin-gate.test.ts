@@ -61,6 +61,6 @@ describe("Admin Gatekeeper & Multi-Stage Auth Flow", () => {
     // Check that user is recognized in current staff status
     const status = await getCurrentStaffStatus();
     expect(status.isAuthenticated).toBe(true);
-    expect(status.role).toBe("admin");
+    expect(["admin", "owner"]).toContain(status.role);
   });
 });

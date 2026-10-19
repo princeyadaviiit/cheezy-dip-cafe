@@ -20,9 +20,12 @@ const TRANSITIONS: TransitionRule[] = [
   { from: "accepted", to: "preparing", allowedActors: ["kitchen", "admin", "owner"] },
   { from: "accepted", to: "cancelled", allowedActors: ["admin", "owner"] },
   { from: "preparing", to: "ready", allowedActors: ["kitchen", "admin", "owner"] },
+  { from: "preparing", to: "cancelled", allowedActors: ["admin", "owner"] },
 
-  // Dine-in Serving
+  // Dine-in Serving & Completion
   { from: "ready", to: "served", allowedActors: ["kitchen", "admin", "owner"] },
+  { from: "ready", to: "delivered", allowedActors: ["kitchen", "admin", "owner"] },
+  { from: "ready", to: "completed", allowedActors: ["kitchen", "admin", "owner"] },
   { from: "served", to: "completed", allowedActors: ["admin", "owner", "kitchen"] },
 
   // Delivery Transitions

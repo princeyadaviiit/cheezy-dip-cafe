@@ -13,6 +13,7 @@ import {
   type OrderRecord,
   type AuditLogEntry,
 } from "@/lib/orders/order-store";
+import { sendTelegramOrderAlert } from "@/services/telegram-service";
 
 // Deduplication store for processed webhook payment IDs
 const PROCESSED_PAYMENTS: Set<string> = new Set();
@@ -101,6 +102,11 @@ export async function verifyDeliveryCheckoutPayment(params: {
   order.razorpayPaymentId = razorpayPaymentId;
   order.updatedAt = new Date().toISOString();
   ORDERS_STORE.set(order.id, order);
+
+  // Send realtime Telegram alert to admin bot
+  sendTelegramOrderAlert(order).catch((err) =>
+    console.error("[Telegram] Delivery order payment alert error:", err)
+  );
 
   // 4. Record audit log
   AUDIT_LOGS_STORE.push({
@@ -233,6 +239,11 @@ export async function processRazorpayWebhook(rawBody: string, signatureHeader: s
   matchedOrder.orderStatus = "placed";
   matchedOrder.updatedAt = new Date().toISOString();
   ORDERS_STORE.set(matchedOrder.id, matchedOrder);
+
+  // Send realtime Telegram alert to admin bot
+  sendTelegramOrderAlert(matchedOrder).catch((err) =>
+    console.error("[Telegram] Webhook delivery order payment alert error:", err)
+  );
 
   // Record payment ID in idempotency set
   PROCESSED_PAYMENTS.add(paymentId);

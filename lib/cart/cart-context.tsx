@@ -54,16 +54,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [orderType, setOrderTypeState] = useState<"dine_in" | "delivery">(() => {
-    if (typeof window === "undefined") return "dine_in";
+    if (typeof window === "undefined") return "delivery";
     try {
       const stored = localStorage.getItem(ORDER_TYPE_KEY);
-      return stored === "dine_in" || stored === "delivery" ? stored : "dine_in";
+      return stored === "delivery" ? "delivery" : "delivery"; // Always default to delivery unless table QR scanned
     } catch {
-      return "dine_in";
+      return "delivery";
     }
   });
 
-  const [tableLabel, setTableLabel] = useState<string | null>(null);
+  const [tableLabel, setTableLabelState] = useState<string | null>(null);
+
+  const setTableLabel = (label: string | null) => {
+    setTableLabelState(label);
+    if (label) {
+      setOrderTypeState("dine_in");
+    } else {
+      setOrderTypeState("delivery");
+    }
+  };
 
   // Sync cart to localStorage upon changes
   useEffect(() => {
@@ -153,6 +162,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setOrderType = (type: "dine_in" | "delivery") => {
+    if (type === "dine_in" && !tableLabel) {
+      setOrderTypeState("delivery");
+      return;
+    }
     setOrderTypeState(type);
   };
 

@@ -72,7 +72,8 @@ export default function CheckoutPage() {
     );
   }
 
-  const deliveryFeeMinor = orderType === "dine_in" ? 0 : 3000;
+  const isDineIn = orderType === "dine_in" && Boolean(tableLabel);
+  const deliveryFeeMinor = isDineIn ? 0 : 3000;
   const grandTotalMinor = subtotalMinor + deliveryFeeMinor;
 
   const handlePlaceOrder = async () => {
@@ -94,15 +95,17 @@ export default function CheckoutPage() {
         ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
         : undefined;
 
+      const effectiveOrderType: "dine_in" | "delivery" = isDineIn ? "dine_in" : "delivery";
+
       const payload = {
-        orderType,
+        orderType: effectiveOrderType,
         items: orderItems,
         customerNote: customerNote.trim() || undefined,
-        paymentMethod: (orderType === "dine_in" ? "pay_at_counter" : "razorpay") as
+        paymentMethod: (effectiveOrderType === "dine_in" ? "pay_at_counter" : "razorpay") as
           | "pay_at_counter"
           | "razorpay",
         deliveryAddressSnapshot:
-          orderType === "delivery"
+          effectiveOrderType === "delivery"
             ? {
                 recipientName: recipientName.trim() || "Customer",
                 phone: phone.trim() || "+919876543210",
@@ -157,7 +160,7 @@ export default function CheckoutPage() {
       )}
 
       {/* Dining Mode & Location Information */}
-      {orderType === "dine_in" ? (
+      {isDineIn ? (
         <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-3 shadow-xs">
           <div className="flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-lg bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] flex items-center justify-center">

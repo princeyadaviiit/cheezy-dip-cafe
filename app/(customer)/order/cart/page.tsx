@@ -127,14 +127,12 @@ export default function CartPage() {
           </span>
           <div>
             <p className="font-semibold text-[var(--text)]">
-              {orderType === "dine_in"
-                ? tableLabel
-                  ? `Dine-in at ${tableLabel}`
-                  : "Dine-in (Scan table QR to seat)"
-                : "Home Delivery"}
+              {orderType === "dine_in" && tableLabel
+                ? `Dine-in at ${tableLabel}`
+                : "Doorstep Home Delivery"}
             </p>
             <p className="text-[11px] text-[var(--text-muted)]">
-              {orderType === "dine_in"
+              {orderType === "dine_in" && tableLabel
                 ? "Pay at counter when finished"
                 : "Prepaid online via Razorpay"}
             </p>

@@ -31,6 +31,7 @@ import {
   Check,
   AlertTriangle,
   Receipt,
+  Printer,
 } from "lucide-react";
 import { UserButton, Show, useUser, SignIn, SignOutButton } from "@clerk/nextjs";
 import {
@@ -63,6 +64,7 @@ import { type OrderStatus, StatusBadge } from "@/components/ui/status-badge";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { BillModal } from "@/components/billing/bill-modal";
+import { TableQrCard, AllTablesPrintSheet } from "@/components/qr/table-qr";
 
 // Web Audio API chime generator for incoming orders
 function playOrderAlertChime() {
@@ -157,6 +159,7 @@ export default function AdminPage() {
   // New order pop-up modal state
   const [newOrderAlert, setNewOrderAlert] = useState<OrderRecord | null>(null);
   const [billOrder, setBillOrder] = useState<OrderRecord | null>(null);
+  const [printAllTables, setPrintAllTables] = useState(false);
   const seenOrderIdsRef = useRef<Set<string>>(new Set());
   const initialLoadRef = useRef(false);
 
@@ -275,7 +278,7 @@ export default function AdminPage() {
 
   // Initial and recurring poll every 4 seconds
   useEffect(() => {
-    if (!isGateUnlocked || !isSignedIn) return;
+    if (!isGateUnlocked) return;
     let active = true;
 
     const timer = setTimeout(() => {
@@ -296,7 +299,7 @@ export default function AdminPage() {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [isGateUnlocked, isSignedIn]);
+  }, [isGateUnlocked]);
 
   // Handle Order Status Transition (Approve, Cook, Ready, Deliver)
   const handleTransition = async (orderId: string, toStatus: OrderStatus) => {
@@ -439,109 +442,19 @@ export default function AdminPage() {
     );
   }
 
-  // 3. STAGE 2: CLERK AUTHENTICATION (Gate is Unlocked, but User is NOT Signed in to Clerk)
-  if (!isSignedIn) {
+  // If there's a fatal authorization error, allow re-locking the gate
+  if (authError) {
     return (
       <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-3 sm:p-4">
-        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <div className="text-center space-y-1.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-              <Unlock className="w-6 h-6" />
-            </div>
-            <span className="inline-block text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-              Gate Passkey Verified
-            </span>
-            <h1 className="text-lg font-extrabold font-display text-[var(--text)]">
-              Staff & Admin Login
-            </h1>
-            <p className="text-xs text-[var(--text-muted)]">
-              Log in to your admin account or sign up to manage cafe operations, orders, and kitchen.
-            </p>
+        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-red-500/30 rounded-2xl p-6 shadow-xl space-y-4 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6" />
           </div>
-
-          <div className="w-full flex justify-center">
-            <SignIn
-              routing="hash"
-              appearance={{
-                elements: {
-                  rootBox: "w-full",
-                  card: "bg-transparent shadow-none border-0 p-0 text-[var(--text)] w-full",
-                  headerTitle: "hidden",
-                  headerSubtitle: "hidden",
-                  formButtonPrimary:
-                    "bg-[var(--brand-primary)] hover:opacity-90 text-white font-bold text-xs py-2.5 rounded-xl min-h-[44px] w-full",
-                  formFieldInput:
-                    "rounded-xl bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] min-h-[44px]",
-                  footerActionLink: "text-[var(--brand-primary)] hover:underline font-semibold text-xs",
-                },
-              }}
-            />
-          </div>
-
-          <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleLockGate}
-              className="text-xs font-semibold text-[var(--text-muted)] hover:text-red-500 flex items-center gap-1 cursor-pointer min-h-[44px] px-2"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Lock Gate</span>
-            </button>
-            <span className="text-[11px] text-[var(--text-muted)]">
-              Admin Subdomain
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 4. STAGE 3: STAFF ROLE ACTIVATION (Signed in with Clerk, Passkey Verified, but Account Not Linked to Staff)
-  if (!currentStaff.role && !authError) {
-    return (
-      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-3 sm:p-4">
-        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="text-center space-y-1.5">
-            <div className="w-12 h-12 rounded-2xl bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30 text-[var(--brand-primary)] flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <h1 className="text-lg font-extrabold font-display text-[var(--text)]">
-              Activate Admin Account
-            </h1>
-            <p className="text-xs text-[var(--text-muted)]">
-              Signed in as <strong className="text-[var(--text)]">{user?.primaryEmailAddress?.emailAddress || user?.fullName || "Staff Member"}</strong>.
-            </p>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-              Your Master Gate passkey is verified. Activate this Clerk account to access live orders, kitchen display, and cafe management.
-            </p>
-          </div>
-
-          <Button
-            variant="primary"
-            onClick={handleClaimAdmin}
-            disabled={isClaimingAdmin}
-            className="w-full min-h-[44px] font-bold text-sm cursor-pointer"
-          >
-            {isClaimingAdmin ? "Activating Admin..." : "👑 Activate as Cafe Admin"}
+          <h1 className="text-base font-extrabold text-[var(--text)]">Access Restricted</h1>
+          <p className="text-xs text-[var(--text-muted)]">{authError}</p>
+          <Button variant="primary" onClick={handleLockGate} className="w-full min-h-[44px]">
+            Re-enter Master Passkey
           </Button>
-
-          <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-            <SignOutButton>
-              <button
-                type="button"
-                className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text)] min-h-[44px] px-2 cursor-pointer"
-              >
-                Sign Out / Switch
-              </button>
-            </SignOutButton>
-            <button
-              type="button"
-              onClick={handleLockGate}
-              className="text-xs font-semibold text-red-500 hover:underline min-h-[44px] px-2 cursor-pointer"
-            >
-              Lock Gate
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -1250,42 +1163,41 @@ export default function AdminPage() {
       {/* ======================================================== */}
       {activeTab === "tables" && (
         <section className="space-y-3">
-          <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-xs text-[var(--text-muted)]">
-            Permanent QR table tokens are signed cryptographically. Rotate token if table stickers are compromised.
+          <div className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] flex items-center justify-between gap-2 shadow-xs">
+            <div>
+              <p className="text-xs font-bold text-[var(--text)]">Physical Table QR Codes</p>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Permanent signed QR codes for in-cafe dine-in tables
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setPrintAllTables(true)}
+              className="text-xs font-bold min-h-[44px] px-3.5 cursor-pointer flex items-center gap-1.5 shrink-0"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print All (Sheet)</span>
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {tables.map((table) => (
-              <div key={table.id} className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-[var(--text)]">{table.label}</h4>
-                  <QrCode className="w-4 h-4 text-[var(--brand-primary)]" />
-                </div>
-                <p className="text-[10px] text-[var(--text-muted)] font-mono truncate">
-                  {table.token}
-                </p>
-                <div className="pt-1 flex gap-2">
-                  <Link
-                    href={`/t/${table.token}`}
-                    target="_blank"
-                    className="flex-1 text-center py-2.5 rounded-xl bg-[var(--bg-inset)] border border-[var(--border)] text-xs font-bold text-[var(--brand-primary)] hover:underline min-h-[44px] flex items-center justify-center cursor-pointer"
-                  >
-                    Open Link →
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRotateToken(table.id)}
-                    disabled={rotatingTableId === table.id}
-                    className="px-3 min-w-[44px] min-h-[44px] rounded-xl cursor-pointer"
-                    title="Rotate QR Token"
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 ${rotatingTableId === table.id ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-              </div>
+              <TableQrCard
+                key={table.id}
+                tableLabel={table.label}
+                token={table.token}
+                onRotate={() => handleRotateToken(table.id)}
+                isRotating={rotatingTableId === table.id}
+              />
             ))}
           </div>
+
+          <AllTablesPrintSheet
+            tables={tables}
+            isOpen={printAllTables}
+            onClose={() => setPrintAllTables(false)}
+          />
         </section>
       )}
 
