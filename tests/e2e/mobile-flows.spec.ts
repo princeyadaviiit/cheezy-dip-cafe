@@ -9,14 +9,14 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     // Heading & Hero
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Cheezy dip");
 
-    // Dual CTAs: Order Now and View Full Menu
-    const orderNowBtn = page.getByRole("button", { name: /order now/i });
+    // Dual CTAs: Primary Action (Order Now or Browse Menu if closed) and View Full Menu
+    const primaryCtaBtn = page.getByRole("button", { name: /order now|browse menu/i });
     const viewMenuBtn = page.getByRole("button", { name: /view full menu/i });
-    await expect(orderNowBtn).toBeVisible();
+    await expect(primaryCtaBtn).toBeVisible();
     await expect(viewMenuBtn).toBeVisible();
 
     // Verify touch targets >= 44px
-    const box = await orderNowBtn.boundingBox();
+    const box = await primaryCtaBtn.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
 
     // Footer contains pure veg and location details

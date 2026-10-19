@@ -8,8 +8,11 @@ import { MENU_ITEMS } from "@/lib/menu-data";
 import { QrCode, Bike, Clock, MapPin, Phone, ChevronRight } from "lucide-react";
 import { Show, UserButton } from "@clerk/nextjs";
 
-export default function LandingPage() {
+import { getPublicCafeStatus } from "@/services/admin-service";
+
+export default async function LandingPage() {
   const signatureDishes = MENU_ITEMS.filter((item) => item.featured).slice(0, 4);
+  const cafeStatus = await getPublicCafeStatus();
 
   return (
     <div className="flex-1 flex flex-col items-center w-full bg-[var(--bg)] text-[var(--text)] overflow-x-hidden">
@@ -85,23 +88,57 @@ export default function LandingPage() {
               priority
               sizes="(max-width: 640px) 100vw, 448px"
             />
-            {/* Live Status Chip */}
-            <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-xs px-2.5 py-1 rounded-[var(--r-pill)] border border-emerald-500/40 flex items-center gap-1.5 shadow">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-semibold text-emerald-400">Open Now • Kitchen Active</span>
+            {/* Live Kitchen Status Chip */}
+            <div
+              className={`absolute top-3 left-3 bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded-[var(--r-pill)] border flex items-center gap-1.5 shadow ${
+                cafeStatus.isOpen ? "border-emerald-500/40" : "border-red-500/50"
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  cafeStatus.isOpen ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                }`}
+              />
+              <span
+                className={`text-xs font-semibold ${
+                  cafeStatus.isOpen ? "text-emerald-400" : "text-red-400 font-bold"
+                }`}
+              >
+                {cafeStatus.isOpen ? "Open Now • Kitchen Active" : "Kitchen Closed (Opens 10 AM)"}
+              </span>
             </div>
           </div>
         </div>
 
+        {/* Night / Operational Kitchen Closed Banner */}
+        {!cafeStatus.isOpen && (
+          <div className="w-full mb-3 p-3.5 rounded-2xl bg-red-500/10 dark:bg-red-950/40 border border-red-500/30 text-left flex items-start gap-3 shadow-xs animate-in fade-in">
+            <span className="text-xl shrink-0">🔴</span>
+            <div className="space-y-0.5">
+              <h3 className="text-xs font-black uppercase tracking-wide text-red-800 dark:text-red-200">
+                Kitchen Closed for the Night
+              </h3>
+              <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                {cafeStatus.statusMessage ||
+                  "Cheezy Dip Cafe kitchen closes at 11:00 PM and reopens fresh every day at 10:00 AM. Browse our full menu below!"}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Two Primary Actions - Always visible without scrolling on 360px */}
         <div className="w-full flex flex-col gap-2.5 pt-1">
-          <Link href="/order" className="w-full">
+          <Link href={cafeStatus.isOpen ? "/order" : "/menu"} className="w-full">
             <Button
               variant="primary"
               size="lg"
-              className="w-full text-base font-extrabold shadow-md tracking-wide"
+              className={`w-full text-base font-extrabold shadow-md tracking-wide ${
+                !cafeStatus.isOpen
+                  ? "bg-amber-700/80 hover:bg-amber-800 text-white"
+                  : ""
+              }`}
             >
-              Order Now
+              {cafeStatus.isOpen ? "Order Now" : "Browse Menu (Kitchen Closed)"}
             </Button>
           </Link>
           <Link href="/menu" className="w-full">
@@ -227,7 +264,7 @@ export default function LandingPage() {
             <Clock className="w-4 h-4 text-[var(--brand-primary)] shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-[var(--text)]">Opening Hours</p>
-              <p className="text-[var(--text-muted)]">Monday – Sunday: 11:00 AM – 11:00 PM</p>
+              <p className="text-[var(--text-muted)]">Monday – Sunday: 10:00 AM – 11:00 PM</p>
               <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Dine-in & Delivery active</p>
             </div>
           </div>
@@ -242,8 +279,8 @@ export default function LandingPage() {
             <Phone className="w-4 h-4 text-[var(--brand-primary)] shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-[var(--text)]">Call Us</p>
-              <a href="tel:+919876543210" className="text-[var(--brand-primary)] hover:underline">
-                +91 98765 43210
+              <a href="tel:+918696321018" className="text-[var(--brand-primary)] font-bold hover:underline">
+                +91 86963 21018
               </a>
             </div>
           </div>

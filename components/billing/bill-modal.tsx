@@ -77,7 +77,7 @@ export function BillModal({ order, isOpen, onClose }: BillModalProps) {
               Shop 4, Lane 2, Near Raja Park Market, Jaipur, RJ 302004
             </p>
             <p className="text-[10px] text-stone-500 dark:text-stone-400">
-              Phone: +91 98765 43210
+              Phone: +91 86963 21018
             </p>
             <p className="text-[10px] text-stone-500 dark:text-stone-400 font-medium">
               100% Pure Vegetarian Cafe

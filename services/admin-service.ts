@@ -18,15 +18,6 @@ import { type OrderStatus } from "@/components/ui/status-badge";
 // In-memory catalog availability overrides
 const AVAILABILITY_OVERRIDES: Map<string, boolean> = new Map();
 
-// Cafe operational settings
-let CAFE_SETTINGS = {
-  isOpen: true,
-  deliveryEnabled: true,
-  openingHours: "10:00 AM - 11:00 PM",
-  minDeliveryOrderMinor: 15000, // ₹150
-  deliveryFeeMinor: 3000, // ₹30
-};
-
 // Active Tables mapping (mirrors database seed)
 const TABLES_STORE: Array<{
   id: string;
@@ -82,22 +73,181 @@ export async function toggleMenuItemAvailability(
   return { itemId, isAvailable };
 }
 
-export async function getCafeSettings() {
-  await requireStaffAuth();
-  return CAFE_SETTINGS;
+// Cafe operational state with IST automatic schedule & admin manual override
+function getISTScheduleInfo(): {
+  hour: number;
+  minute: number;
+  dateStr: string;
+  isScheduledOpen: boolean;
+} {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const istDate = new Date(utcMs + 5.5 * 3600000);
+  const hour = istDate.getHours();
+  const minute = istDate.getMinutes();
+  const dateStr = istDate.toISOString().split("T")[0];
+  // Opens daily at 10:00 AM, automatically closes at/after 11:00 PM (23:00)
+  const isScheduledOpen = hour >= 10 && hour < 23;
+  return { hour, minute, dateStr, isScheduledOpen };
 }
 
-export async function updateCafeSettings(updates: Partial<typeof CAFE_SETTINGS>) {
+interface CafeOperationalState {
+  manualOverride: boolean | null;
+  overrideDate: string | null;
+  overridePeriod: "day" | "night" | null;
+  deliveryEnabled: boolean;
+  openingHours: string;
+  minDeliveryOrderMinor: number;
+  deliveryFeeMinor: number;
+}
+
+const CAFE_STATE: CafeOperationalState = {
+  manualOverride: null,
+  overrideDate: null,
+  overridePeriod: null,
+  deliveryEnabled: true,
+  openingHours: "10:00 AM - 11:00 PM",
+  minDeliveryOrderMinor: 15000,
+  deliveryFeeMinor: 3000,
+};
+
+function computeEffectiveCafeStatus(): {
+  isOpen: boolean;
+  deliveryEnabled: boolean;
+  openingHours: string;
+  statusMessage: string;
+  isManualOverride: boolean;
+} {
+  const { hour, dateStr, isScheduledOpen } = getISTScheduleInfo();
+  const currentPeriod = isScheduledOpen ? "day" : "night";
+
+  // If admin set an explicit manual override in this period and date, honor it
+  if (
+    CAFE_STATE.manualOverride !== null &&
+    CAFE_STATE.overrideDate === dateStr &&
+    CAFE_STATE.overridePeriod === currentPeriod
+  ) {
+    return {
+      isOpen: CAFE_STATE.manualOverride,
+      deliveryEnabled: CAFE_STATE.deliveryEnabled,
+      openingHours: CAFE_STATE.openingHours,
+      statusMessage: CAFE_STATE.manualOverride
+        ? "Kitchen is OPEN (manually enabled by cafe admin)"
+        : "Kitchen is CLOSED (temporarily paused by cafe admin)",
+      isManualOverride: true,
+    };
+  }
+
+  // Automatic schedule: closed after 11 PM until 10 AM; open 10 AM to 11 PM
+  if (!isScheduledOpen) {
+    const msg =
+      hour >= 23
+        ? "Kitchen closed for the night (after 11:00 PM). Opens fresh at 10:00 AM everyday!"
+        : "Kitchen opens at 10:00 AM everyday. We close at 11:00 PM.";
+    return {
+      isOpen: false,
+      deliveryEnabled: CAFE_STATE.deliveryEnabled,
+      openingHours: CAFE_STATE.openingHours,
+      statusMessage: msg,
+      isManualOverride: false,
+    };
+  }
+
+  return {
+    isOpen: true,
+    deliveryEnabled: CAFE_STATE.deliveryEnabled,
+    openingHours: CAFE_STATE.openingHours,
+    statusMessage: "Kitchen is OPEN and accepting orders (10:00 AM - 11:00 PM daily)",
+    isManualOverride: false,
+  };
+}
+
+export async function getCafeSettings() {
+  await requireStaffAuth();
+  const current = computeEffectiveCafeStatus();
+  return {
+    isOpen: current.isOpen,
+    deliveryEnabled: current.deliveryEnabled,
+    openingHours: current.openingHours,
+    minDeliveryOrderMinor: CAFE_STATE.minDeliveryOrderMinor,
+    deliveryFeeMinor: CAFE_STATE.deliveryFeeMinor,
+    statusMessage: current.statusMessage,
+    isManualOverride: current.isManualOverride,
+  };
+}
+
+export async function getPublicCafeStatus(): Promise<{
+  isOpen: boolean;
+  deliveryEnabled: boolean;
+  openingHours: string;
+  statusMessage: string;
+}> {
+  const current = computeEffectiveCafeStatus();
+  return {
+    isOpen: current.isOpen,
+    deliveryEnabled: current.deliveryEnabled,
+    openingHours: current.openingHours,
+    statusMessage: current.statusMessage,
+  };
+}
+
+export async function toggleKitchenStatus(): Promise<{ isOpen: boolean; statusMessage: string }> {
+  const staff = await requireStaffAuth();
+  if (staff.role !== "admin" && staff.role !== "owner") {
+    throw new Error("UNAUTHORIZED: Only admin or owner can toggle kitchen operational status.");
+  }
+  const current = computeEffectiveCafeStatus();
+  const next = !current.isOpen;
+  const { dateStr, isScheduledOpen } = getISTScheduleInfo();
+  CAFE_STATE.manualOverride = next;
+  CAFE_STATE.overrideDate = dateStr;
+  CAFE_STATE.overridePeriod = isScheduledOpen ? "day" : "night";
+  return {
+    isOpen: next,
+    statusMessage: next ? "Kitchen manually opened by admin" : "Kitchen manually closed by admin",
+  };
+}
+
+export async function updateCafeSettings(updates: Partial<{ isOpen: boolean; deliveryEnabled: boolean }>) {
   const staff = await requireStaffAuth();
   if (staff.role !== "admin" && staff.role !== "owner") {
     throw new Error("UNAUTHORIZED: Only admin or owner can update cafe operational settings.");
   }
 
-  CAFE_SETTINGS = {
-    ...CAFE_SETTINGS,
-    ...updates,
+  if (updates.isOpen !== undefined) {
+    const { dateStr, isScheduledOpen } = getISTScheduleInfo();
+    CAFE_STATE.manualOverride = updates.isOpen;
+    CAFE_STATE.overrideDate = dateStr;
+    CAFE_STATE.overridePeriod = isScheduledOpen ? "day" : "night";
+  }
+
+  if (updates.deliveryEnabled !== undefined) {
+    CAFE_STATE.deliveryEnabled = updates.deliveryEnabled;
+  }
+
+  const current = computeEffectiveCafeStatus();
+  return {
+    isOpen: current.isOpen,
+    deliveryEnabled: current.deliveryEnabled,
+    openingHours: current.openingHours,
+    statusMessage: current.statusMessage,
   };
-  return CAFE_SETTINGS;
+}
+
+export async function setKitchenStatusFromBot(
+  isOpen: boolean,
+  actorTelegramId: string | number
+): Promise<{ isOpen: boolean; statusMessage: string }> {
+  const { dateStr, isScheduledOpen } = getISTScheduleInfo();
+  CAFE_STATE.manualOverride = isOpen;
+  CAFE_STATE.overrideDate = dateStr;
+  CAFE_STATE.overridePeriod = isScheduledOpen ? "day" : "night";
+  return {
+    isOpen,
+    statusMessage: isOpen
+      ? `Kitchen opened via Telegram Bot by admin (${actorTelegramId})`
+      : `Kitchen closed via Telegram Bot by admin (${actorTelegramId})`,
+  };
 }
 
 export async function getTablesList() {

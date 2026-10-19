@@ -37,7 +37,12 @@ export default function ContactPage() {
           <Phone className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <h3 className="font-bold text-[var(--text)] text-sm">Phone Helpline</h3>
-            <p className="text-[var(--text)] font-mono font-bold">+91 8696321018</p>
+            <a
+              href="tel:+918696321018"
+              className="inline-block text-[var(--brand-primary)] font-mono font-bold hover:underline"
+            >
+              +91 86963 21018
+            </a>
             <p className="text-[11px] text-[var(--text-muted)]">Available daily from 10:00 AM to 11:00 PM</p>
           </div>
         </div>

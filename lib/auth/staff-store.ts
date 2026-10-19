@@ -19,7 +19,7 @@ export const STAFF_STORE: StaffMember[] = [
     id: "s0000000-0000-0000-0000-000000000001",
     clerkUserId: "user_owner_default",
     name: "Cafe Owner",
-    phone: "+919876543210",
+    phone: "+918696321018",
     email: "owner@cheezydipcafe.com",
     role: "owner",
     isActive: true,

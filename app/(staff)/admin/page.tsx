@@ -219,6 +219,15 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleKitchen = async () => {
+    try {
+      const updated = await updateCafeSettings({ isOpen: !cafeSettings.isOpen });
+      setCafeSettings((prev) => ({ ...prev, isOpen: updated.isOpen }));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to toggle kitchen operational status");
+    }
+  };
+
   // Data fetching function
   const fetchData = async () => {
     try {
@@ -547,6 +556,32 @@ export default function AdminPage() {
           </button>
         </div>
       </header>
+
+      {/* 1-Tap Kitchen Status Control Bar */}
+      <div className="flex items-center justify-between p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <span className={`w-3.5 h-3.5 rounded-full shrink-0 ${cafeSettings.isOpen ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+          <div>
+            <p className="text-xs font-bold text-[var(--text)]">
+              Kitchen: <span className={cafeSettings.isOpen ? "text-emerald-600 dark:text-emerald-400 font-extrabold" : "text-red-600 dark:text-red-400 font-extrabold"}>{cafeSettings.isOpen ? "OPEN (Accepting Orders)" : "CLOSED (Orders Paused)"}</span>
+            </p>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {cafeSettings.isOpen ? "Customers can place dine-in & delivery orders" : "All customer orders are temporarily stopped"}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleToggleKitchen}
+          className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 border transition-all cursor-pointer shadow-xs shrink-0 ${
+            cafeSettings.isOpen
+              ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 hover:bg-red-500/20"
+              : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/40 hover:bg-emerald-500/25"
+          }`}
+        >
+          {cafeSettings.isOpen ? "🔴 Close Kitchen" : "🟢 Open Kitchen"}
+        </button>
+      </div>
 
       {/* Access Error Banner / Dev Role Switcher */}
       {authError && (
@@ -1050,7 +1085,7 @@ export default function AdminPage() {
               />
               <input
                 type="tel"
-                placeholder="Mobile Number (+919876543210)"
+                placeholder="Mobile Number (+918696321018)"
                 value={newStaffPhone}
                 onChange={(e) => setNewStaffPhone(e.target.value)}
                 className="w-full px-3 py-2 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 min-h-[44px]"

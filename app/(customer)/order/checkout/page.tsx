@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Utensils, AlertTriangle, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Utensils, AlertTriangle, ShieldCheck, CheckCircle2, MapPin } from "lucide-react";
 import { useCart } from "@/lib/cart/cart-context";
 import { placeOrder } from "@/services/order-service";
+import { getPublicCafeStatus } from "@/services/admin-service";
 import { Button } from "@/components/ui/button";
 
 export default function CheckoutPage() {
@@ -15,6 +16,7 @@ export default function CheckoutPage() {
     clearCart,
     subtotalMinor,
     orderType,
+    setOrderType,
     tableLabel,
     totalCount,
   } = useCart();
@@ -26,12 +28,34 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [area, setArea] = useState("");
-  const [pincode, setPincode] = useState("302001");
+  const [pincode, setPincode] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cafeStatus, setCafeStatus] = useState<{ isOpen: boolean; deliveryEnabled: boolean }>({
+    isOpen: true,
+    deliveryEnabled: true,
+  });
+
+  // Poll kitchen operational status
+  useEffect(() => {
+    let active = true;
+    getPublicCafeStatus().then((s) => {
+      if (active) setCafeStatus(s);
+    });
+    const interval = setInterval(() => {
+      getPublicCafeStatus().then((s) => {
+        if (active) setCafeStatus(s);
+      });
+    }, 8000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -45,42 +69,97 @@ export default function CheckoutPage() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         setCoords({ lat, lng });
-        setLocationSuccess(`Location pinned (±${Math.round(position.coords.accuracy)}m accuracy)`);
+        const successMsg = `Live GPS location pinned (±${Math.round(position.coords.accuracy)}m accuracy)`;
+        setLocationSuccess(successMsg);
         setIsLocating(false);
+        setShowLocationModal(true);
         if (!addressLine) {
-          setAddressLine(`GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          setAddressLine(`GPS Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         }
       },
       (error) => {
         setIsLocating(false);
         setErrorMessage(
           error.code === 1
-            ? "Location permission was denied. Please allow location access or type your address manually."
-            : "Could not fetch GPS location. Please type your address manually."
+            ? "Location permission was denied. Please allow location access in your browser or enter your address manually."
+            : "Could not fetch GPS location. Please enter your address manually."
         );
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
-  if (items.length === 0) {
-    return (
-      <div className="py-16 text-center space-y-4">
-        <h2 className="text-base font-bold text-[var(--text)]">Your cart is empty</h2>
-        <Link href="/order">
-          <Button variant="primary">Browse Menu</Button>
-        </Link>
-      </div>
-    );
-  }
-
-  const isDineIn = orderType === "dine_in" || Boolean(tableLabel);
+  // Strict Dine-In Guard: Dine-in is ONLY possible if customer has scanned the QR code (tableLabel present)
+  const isDineIn = Boolean(tableLabel);
   const deliveryFeeMinor = isDineIn ? 0 : 3000;
   const grandTotalMinor = subtotalMinor + deliveryFeeMinor;
+
+  // Proactively prompt for location on delivery checkout
+  useEffect(() => {
+    if (!isDineIn && !coords && typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setCoords({ lat, lng });
+          setLocationSuccess(`Live GPS location pinned (±${Math.round(pos.coords.accuracy)}m accuracy)`);
+          setShowLocationModal(true);
+          setAddressLine((prev) => prev || `GPS Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        },
+        () => {
+          // If user rejects initial prompt, fallback silently to manual form
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    }
+  }, [isDineIn, coords]);
 
   const handlePlaceOrder = async () => {
     setIsSubmitting(true);
     setErrorMessage(null);
+
+    // Verify Kitchen Status
+    if (!cafeStatus.isOpen) {
+      setErrorMessage("Cheezy Dip Cafe kitchen is currently CLOSED. We are not accepting orders right now. The kitchen will reopen soon!");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!isDineIn && !cafeStatus.deliveryEnabled) {
+      setErrorMessage("Doorstep delivery is temporarily paused by the cafe. Please try again shortly.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Mandatory Delivery Field Validation
+    if (!isDineIn) {
+      if (!recipientName.trim() || recipientName.trim().length < 2) {
+        setErrorMessage("Please enter the recipient's full name for delivery.");
+        setIsSubmitting(false);
+        return;
+      }
+      const cleanPhone = phone.trim().replace(/\D/g, "");
+      if (!cleanPhone || cleanPhone.length < 10) {
+        setErrorMessage("Please enter a valid 10-digit mobile phone number for delivery.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!addressLine.trim() || addressLine.trim().length < 3) {
+        setErrorMessage("Please enter your complete delivery street address / house number.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!area.trim() || area.trim().length < 2) {
+        setErrorMessage("Please enter your delivery area or locality.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!pincode.trim() || !/^\d{6}$/.test(pincode.trim())) {
+        setErrorMessage("Please enter a valid 6-digit postal pincode.");
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     try {
       // Generate client idempotency key
@@ -103,19 +182,19 @@ export default function CheckoutPage() {
         orderType: effectiveOrderType,
         items: orderItems,
         customerNote: customerNote.trim() || undefined,
-        customerName: effectiveOrderType === "dine_in" ? (dinerName.trim() || undefined) : (recipientName.trim() || undefined),
-        customerPhone: effectiveOrderType === "dine_in" ? (dinerPhone.trim() || undefined) : (phone.trim() || undefined),
+        customerName: effectiveOrderType === "dine_in" ? (dinerName.trim() || undefined) : recipientName.trim(),
+        customerPhone: effectiveOrderType === "dine_in" ? (dinerPhone.trim() || undefined) : phone.trim(),
         paymentMethod: (effectiveOrderType === "dine_in" ? "pay_at_counter" : "razorpay") as
           | "pay_at_counter"
           | "razorpay",
         deliveryAddressSnapshot:
           effectiveOrderType === "delivery"
             ? {
-                recipientName: recipientName.trim() || "Customer",
-                phone: phone.trim() || "+919876543210",
-                line1: addressLine.trim() || "Main Street",
-                area: area.trim() || "Cafe Vicinity",
-                pincode: pincode.trim() || "302001",
+                recipientName: recipientName.trim(),
+                phone: phone.trim(),
+                line1: addressLine.trim(),
+                area: area.trim(),
+                pincode: pincode.trim(),
                 latitude: coords?.lat,
                 longitude: coords?.lng,
                 googleMapsUrl,
@@ -138,6 +217,17 @@ export default function CheckoutPage() {
     }
   };
 
+  if (items.length === 0) {
+    return (
+      <div className="py-16 text-center space-y-4">
+        <h2 className="text-base font-bold text-[var(--text)]">Your cart is empty</h2>
+        <Link href="/order">
+          <Button variant="primary">Browse Menu</Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-12">
       {/* Top Header */}
@@ -151,6 +241,21 @@ export default function CheckoutPage() {
         </Link>
         <h1 className="text-lg font-bold font-display text-[var(--text)]">Checkout</h1>
       </div>
+
+      {/* Kitchen Closed Banner */}
+      {!cafeStatus.isOpen && (
+        <div className="p-3.5 rounded-2xl bg-red-500/10 dark:bg-red-950/40 border border-red-500/40 flex items-start gap-2.5 text-xs text-red-800 dark:text-red-200 shadow-xs">
+          <span className="text-xl shrink-0">🔴</span>
+          <div>
+            <p className="font-extrabold text-red-900 dark:text-white uppercase tracking-wide">
+              Kitchen Currently Closed
+            </p>
+            <p className="mt-0.5 text-red-700 dark:text-red-300 leading-relaxed">
+              Cheezy Dip Cafe kitchen is currently paused for new orders. Our kitchen will reopen soon!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Error Banner */}
       {errorMessage && (
@@ -258,43 +363,96 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Recipient Full Name"
-              value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
-            />
-            <input
-              type="tel"
-              placeholder="Delivery Contact Mobile Number (+91)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
-            />
-            <input
-              type="text"
-              placeholder="House/Flat No., Building, Street Name"
-              value={addressLine}
-              onChange={(e) => setAddressLine(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
-            />
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-500/20">
+              <span className="font-bold">* Mandatory:</span>
+              <span>Name, phone, street address, area & pincode are required to deliver your food.</span>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="recipient-name" className="block text-xs font-bold text-[var(--text)]">
+                Recipient Full Name <span className="text-red-500">*</span>
+              </label>
               <input
+                id="recipient-name"
                 type="text"
-                placeholder="Area / Locality"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
+                autoComplete="name"
+                required
+                aria-required="true"
+                placeholder="e.g. John Doe"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
               />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="delivery-phone" className="block text-xs font-bold text-[var(--text)]">
+                Delivery Contact Mobile Number <span className="text-red-500">*</span>
+              </label>
               <input
-                type="text"
-                placeholder="Pincode"
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
+                id="delivery-phone"
+                type="tel"
+                autoComplete="tel"
+                required
+                aria-required="true"
+                placeholder="10-digit mobile number (+91)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
               />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="delivery-address" className="block text-xs font-bold text-[var(--text)]">
+                House/Flat No., Building & Street Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="delivery-address"
+                type="text"
+                autoComplete="street-address"
+                required
+                aria-required="true"
+                placeholder="e.g. Flat 302, Sunrise Apts, 5th Cross Road"
+                value={addressLine}
+                onChange={(e) => setAddressLine(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label htmlFor="delivery-area" className="block text-xs font-bold text-[var(--text)]">
+                  Area / Locality <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="delivery-area"
+                  type="text"
+                  required
+                  aria-required="true"
+                  placeholder="e.g. Malviya Nagar"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="delivery-pincode" className="block text-xs font-bold text-[var(--text)]">
+                  6-Digit Pincode <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="delivery-pincode"
+                  type="text"
+                  maxLength={6}
+                  autoComplete="postal-code"
+                  required
+                  aria-required="true"
+                  placeholder="e.g. 302017"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+                />
+              </div>
             </div>
           </div>
 
@@ -363,18 +521,58 @@ export default function CheckoutPage() {
         variant="primary"
         size="lg"
         onClick={handlePlaceOrder}
-        disabled={isSubmitting}
+        disabled={isSubmitting || !cafeStatus.isOpen}
         className="w-full h-13 font-bold text-base flex items-center justify-center gap-2 shadow-xl"
       >
         {isSubmitting ? (
           <span>Sending order to kitchen...</span>
+        ) : !cafeStatus.isOpen ? (
+          <span>🔴 Kitchen is Currently Closed</span>
         ) : (
           <>
             <CheckCircle2 className="w-5 h-5" />
-            <span>Place {orderType === "dine_in" ? "Dine-In" : "Delivery"} Order • ₹{Math.round(grandTotalMinor / 100)}</span>
+            <span>Place {isDineIn ? "Dine-In" : "Delivery"} Order • ₹{Math.round(grandTotalMinor / 100)}</span>
           </>
         )}
       </Button>
+
+      {/* Location Permission Pop-Up Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-raised)] border border-emerald-500/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl text-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-3xl font-bold shadow-xs">
+              📍
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-[var(--text)]">
+                Location Provided Successfully!
+              </h3>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                {locationSuccess || "Your live GPS coordinates have been pinned for fast doorstep delivery."}
+              </p>
+            </div>
+            {coords && (
+              <div className="p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)] text-left text-xs space-y-1">
+                <p className="font-bold text-[var(--text)]">Delivery Coordinates:</p>
+                <p className="font-mono text-[11px] text-[var(--brand-primary)]">
+                  {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                </p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                  ✓ Verified for cafe delivery zone
+                </p>
+              </div>
+            )}
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setShowLocationModal(false)}
+              className="w-full min-h-[44px] font-bold"
+            >
+              Awesome, Continue
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

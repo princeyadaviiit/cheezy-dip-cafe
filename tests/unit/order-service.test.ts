@@ -6,12 +6,12 @@ vi.mock("@/lib/auth/server", () => ({
   requireCustomerAuth: vi.fn().mockResolvedValue({
     userId: "user_test_customer_123",
     role: null,
-    phone: "+919876543210",
+    phone: "+918696321018",
   }),
   getAuthSession: vi.fn().mockResolvedValue({
     userId: "user_test_customer_123",
     role: null,
-    phone: "+919876543210",
+    phone: "+918696321018",
   }),
 }));
 
@@ -23,8 +23,10 @@ vi.mock("@/lib/auth/table-cookie", () => ({
 }));
 
 describe("Order Service (placeOrder validation & security)", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { setKitchenStatusFromBot } = await import("@/services/admin-service");
+    await setKitchenStatusFromBot(true, "unit_test");
   });
 
   it("places a valid dine-in order when signed table cookie is present", async () => {
@@ -68,7 +70,7 @@ describe("Order Service (placeOrder validation & security)", () => {
         idempotencyKey: "idem_key_test_002",
         items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
       })
-    ).rejects.toThrow(/No active table session found/);
+    ).rejects.toThrow(/Dine-in ordering is strictly available only after physically scanning the QR code/);
   });
 
   it("rejects dine-in order if payment method is not pay_at_counter", async () => {
@@ -86,6 +88,115 @@ describe("Order Service (placeOrder validation & security)", () => {
         items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
       })
     ).rejects.toThrow(/Dine-in orders currently use Pay at counter/);
+  });
+
+  it("rejects delivery order when deliveryAddressSnapshot is completely missing", async () => {
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_delivery_no_address",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects delivery order when recipient name is missing or too short", async () => {
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_delivery_short_name",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+        deliveryAddressSnapshot: {
+          recipientName: "A",
+          phone: "9876543210",
+          line1: "Flat 101, Sunshine Apts",
+          area: "Vaishali Nagar",
+          pincode: "302021",
+        },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects delivery order when phone number has fewer than 10 digits", async () => {
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_delivery_bad_phone",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+        deliveryAddressSnapshot: {
+          recipientName: "Rahul Sharma",
+          phone: "98765",
+          line1: "Flat 101, Sunshine Apts",
+          area: "Vaishali Nagar",
+          pincode: "302021",
+        },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects delivery order when street address is missing or too short", async () => {
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_delivery_short_line1",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+        deliveryAddressSnapshot: {
+          recipientName: "Rahul Sharma",
+          phone: "9876543210",
+          line1: "No",
+          area: "Vaishali Nagar",
+          pincode: "302021",
+        },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects delivery order when pincode is not 6 digits", async () => {
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_delivery_bad_pincode",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+        deliveryAddressSnapshot: {
+          recipientName: "Rahul Sharma",
+          phone: "9876543210",
+          line1: "Flat 101, Sunshine Apts",
+          area: "Vaishali Nagar",
+          pincode: "3020",
+        },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("places a valid delivery order when all mandatory delivery fields are present", async () => {
+    const order = await placeOrder({
+      orderType: "delivery",
+      paymentMethod: "razorpay",
+      idempotencyKey: "idem_delivery_valid_full_fields",
+      items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+      deliveryAddressSnapshot: {
+        recipientName: "Rahul Sharma",
+        phone: "+91 9876543210",
+        line1: "Flat 101, Sunshine Apts, Main Street",
+        area: "Vaishali Nagar",
+        pincode: "302021",
+      },
+    });
+
+    expect(order.orderNumber).toMatch(/^CD-\d+$/);
+    expect(order.orderType).toBe("delivery");
+    expect(order.orderStatus).toBe("pending_payment");
+    expect(order.deliveryAddressSnapshot).toMatchObject({
+      recipientName: "Rahul Sharma",
+      line1: "Flat 101, Sunshine Apts, Main Street",
+      area: "Vaishali Nagar",
+      pincode: "302021",
+    });
   });
 
   it("deduplicates orders with the same idempotency key", async () => {
@@ -146,5 +257,30 @@ describe("Order Service (placeOrder validation & security)", () => {
     expect(order.orderStatus).toBe("placed");
     expect(order.paymentStatus).toBe("pending");
     expect(order.paymentMethod).toBe("pay_at_counter");
+  });
+
+  it("rejects order when kitchen is closed", async () => {
+    const { setKitchenStatusFromBot } = await import("@/services/admin-service");
+
+    await setKitchenStatusFromBot(false, "unit_test");
+
+    await expect(
+      placeOrder({
+        orderType: "delivery",
+        paymentMethod: "razorpay",
+        idempotencyKey: "idem_closed_kitchen_test",
+        items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+        deliveryAddressSnapshot: {
+          recipientName: "Rahul Sharma",
+          phone: "+91 8696321018",
+          line1: "Flat 101, Sunshine Apts",
+          area: "Vaishali Nagar",
+          pincode: "302021",
+        },
+      })
+    ).rejects.toThrow(/KITCHEN_CLOSED/);
+
+    // Reopen kitchen for subsequent tests
+    await setKitchenStatusFromBot(true, "unit_test");
   });
 });

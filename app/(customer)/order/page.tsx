@@ -9,11 +9,34 @@ import { MENU_ITEMS, CATEGORIES, type MenuItem } from "@/lib/menu-data";
 import { useCart } from "@/lib/cart/cart-context";
 import { ItemModifierModal } from "@/components/orders/item-modifier-modal";
 import { Button } from "@/components/ui/button";
+import { getPublicCafeStatus } from "@/services/admin-service";
 
 function CustomerOrderContent() {
   const searchParams = useSearchParams();
   const tableParam = searchParams.get("table");
   const { addItem, totalCount, subtotalMinor, tableLabel, setTableLabel, orderType, setOrderType } = useCart();
+
+  const [cafeStatus, setCafeStatus] = useState<{ isOpen: boolean; deliveryEnabled: boolean }>({
+    isOpen: true,
+    deliveryEnabled: true,
+  });
+
+  // Fetch and poll public cafe status
+  React.useEffect(() => {
+    let active = true;
+    getPublicCafeStatus().then((s) => {
+      if (active) setCafeStatus(s);
+    });
+    const interval = setInterval(() => {
+      getPublicCafeStatus().then((s) => {
+        if (active) setCafeStatus(s);
+      });
+    }, 8000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // If table is in query param, save to cart context
   React.useEffect(() => {
@@ -42,6 +65,21 @@ function CustomerOrderContent() {
 
   return (
     <div className="space-y-4 pb-24">
+      {/* Kitchen Closed Warning Banner */}
+      {!cafeStatus.isOpen && (
+        <div className="p-4 bg-red-500/10 dark:bg-red-950/40 border border-red-500/40 rounded-2xl flex items-start gap-3 shadow-xs animate-in fade-in">
+          <span className="text-xl shrink-0">🔴</span>
+          <div className="space-y-0.5">
+            <h3 className="text-xs font-black text-red-800 dark:text-red-200 uppercase tracking-wide">
+              Kitchen Currently Closed
+            </h3>
+            <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+              Cheezy Dip Cafe kitchen is currently paused for new orders. You can browse our menu; orders will resume once the kitchen reopens!
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Table / Dining Mode Banner */}
       {tableLabel || tableParam ? (
         <div className="p-3.5 bg-[var(--bg-raised)] rounded-xl border border-[var(--brand-primary)]/40 flex items-center justify-between shadow-xs">

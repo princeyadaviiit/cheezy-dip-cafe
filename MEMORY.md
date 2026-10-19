@@ -1,8 +1,8 @@
 # MEMORY.md (Cheezy dip cafe)
-Last updated: 2026-10-20 00:10 IST by Lead AI Engineer (Antigravity)
+Last updated: 2026-10-20 00:44 IST by Lead AI Engineer (Antigravity)
 
 ## 1. Project snapshot
-Cheezy dip cafe is a mobile-first single-cafe ordering web application. All client requirements (frictionless table QR scanning with direct dine-in ordering without login, high-visibility table number alerts in the Admin panel and Telegram bot, direct admin passkey access, printable table QR sheets, clean itemized billing without tax/GST/FSSAI, Razorpay payments, and clean production setup docs) are fully delivered, verified, and passing in CI/CD suites.
+Cheezy dip cafe is a mobile-first single-cafe ordering web application. All client requirements (automatic 11 PM kitchen night closure & daily opening with admin override, mandatory delivery address details, owner helpline +91 86963 21018 everywhere, frictionless table QR scanning with direct dine-in ordering without login, high-visibility table number alerts in the Admin panel and Telegram bot, direct admin passkey access, printable table QR sheets, clean itemized billing without tax/GST/FSSAI, Razorpay payments, and clean production setup docs) are fully delivered, verified, and passing in CI/CD suites.
 
 ## 2. Phase tracker
 
@@ -51,7 +51,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - **Styling**: Tailwind CSS v4 with CSS variables
 - **Auth**: Clerk Free Tier (`@clerk/nextjs` 7.9.17) + 30-day HMAC-SHA256 Master Gate Passkey
 - **Database**: Supabase PostgreSQL (`@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7)
-- **Test Runner**: Vitest 5.0.5 (87 tests passing across 15 suites)
+- **Test Runner**: Vitest 5.0.5 (94 tests passing across 15 suites)
 - **E2E Runner**: Playwright 1.58.2 (14 tests passing across mobile-360 & mobile-390)
 - **Linter**: ESLint 9.39.5 (0 errors, 0 warnings)
 
@@ -59,8 +59,8 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 
 | 2026-10-20 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
 | 2026-10-20 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-20 | `npm test` | Pass: 15 test files, 87 tests passed (0 failed) in 11.33s |
-| 2026-10-20 | `npx playwright test` | Pass: 14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
+| 2026-10-20 | `npm test` | Pass: 15 test files, 94 tests passed (0 failed) in 5.69s |
+| 2026-10-20 | `npx playwright test --workers=1` | Pass: 14/14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
 | 2026-10-20 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
@@ -85,6 +85,14 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-20 | Kitchen Auto 11 PM Night Closure, Mandatory Delivery Address, Owner Helpline 8696321018 Everywhere:
+  1. Automatic Night 11 PM Closure & Daily Opening with Admin Override (`services/admin-service.ts`): Built IST schedule engine that automatically sets kitchen to CLOSED after 11:00 PM (23:00 IST) through the night and automatically OPENS at 10:00 AM daily. Admin and owner can manually toggle kitchen operational status at any time from the web Admin Dashboard (1-tap header toggle bar) or via the Telegram Bot (`/kitchen` command & interactive button). Orders rejected with `KITCHEN_CLOSED` when closed.
+  2. First Page & Customer UI Live Kitchen Status (`app/(public)/page.tsx`, `order/checkout/page.tsx`): First landing page dynamically loads `getPublicCafeStatus()`; renders a live status chip on the hero food photo (`🔴 Kitchen Closed (Opens 10 AM)` / `🟢 Open Now • Kitchen Active`), a prominent night closure banner, and transforms the primary action to "Browse Menu (Kitchen Closed)" when closed. Customer checkout polls operational status every 8s and prevents order submission if closed.
+  3. Mandatory Delivery Address & Validation (`lib/orders/order-schema.ts`, `services/order-service.ts`, `order/checkout/page.tsx`): Delivery orders strictly enforce that Recipient Name, 10-digit Phone, House/Street address, Area/Locality, and 6-digit Pincode are all mandatory with red `* Mandatory` badges in the UI and server-side Zod refinement. Orders cannot be placed if any of these fields are missing.
+  4. Strict Table QR Guard for Dine-In: Dine-in mode is strictly enabled ONLY when physically scanning a table QR code (`isDineIn = Boolean(tableLabel)` in checkout UI and cryptographic HMAC `getTableContext()` verification in `order-service.ts`).
+  5. GPS Location Permission Modal: Geolocation requested on delivery checkout; upon permission grant, displays a responsive confirmation modal with pinned coordinates and accuracy.
+  6. Owner Contact Phone Updated Everywhere to `+91 86963 21018`: Updated clickable `tel:+918696321018` link on landing page and contact page, receipt bill modal (`components/billing/bill-modal.tsx`), admin staff placeholder, and default owner phone in `lib/auth/staff-store.ts`.
+  7. Verification: 15 Vitest suites (94 tests) passed with 0 failures, 14 Playwright mobile E2E tests passed with 0 failures on mobile-360 & mobile-390, ESLint 0 errors, TypeScript 0 errors, Next.js Turbopack build 21/21 routes generated cleanly. | services/admin-service.ts, services/order-service.ts, services/telegram-service.ts, app/, components/, lib/
 - 2026-10-20 | Frictionless Table QR Scan & Direct Dine-In Ordering Without Login:
   1. Login-Free Table QR Flow: Updated `proxy.ts` to include `/order(.*)` in public routes so scanning a table QR (`/t/[token]`) sets the signed `table_ctx` and `cd_table_label` cookie and redirects straight into `/order?table=Table%20X` without triggering Clerk sign-in redirection.
   2. Guest Dine-In Order Placement (`services/order-service.ts`): Allowed dine-in orders with cryptographic table proof (`table_ctx`) to be placed immediately by guests without requiring Clerk login. Generates a guest dine-in customer ID (`guest_tbl_table_X_...`) while supporting optional guest name and phone.

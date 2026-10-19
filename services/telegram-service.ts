@@ -209,6 +209,43 @@ export async function handleTelegramWebhook(update: any): Promise<{ success: boo
       return { success: false, message: "Unauthorized user" };
     }
 
+    if (data === "tg_kitchen:toggle") {
+      const { getPublicCafeStatus, setKitchenStatusFromBot } = await import(
+        "@/services/admin-service"
+      );
+      const current = await getPublicCafeStatus();
+      const next = !current.isOpen;
+      await setKitchenStatusFromBot(next, fromId);
+
+      await callTelegramApi("answerCallbackQuery", {
+        callback_query_id: cq.id,
+        text: next ? "🟢 Kitchen is now OPEN!" : "🔴 Kitchen is now CLOSED!",
+      });
+
+      if (message && message.chat && message.message_id) {
+        const statusIcon = next ? "🟢 OPEN" : "🔴 CLOSED";
+        const buttonText = next ? "🔴 Close Kitchen" : "🟢 Open Kitchen";
+        const msgText =
+          `🍳 <b>Kitchen Operational Status</b>\n\n` +
+          `• <b>Current Status:</b> ${statusIcon}\n` +
+          `• <b>Schedule:</b> 10:00 AM - 11:00 PM daily\n` +
+          `• <b>Night Rule:</b> Automatically closed after 11:00 PM\n` +
+          `• <b>Updated by:</b> Admin Telegram ID <code>${fromId}</code>\n\n` +
+          `Tap below to toggle kitchen operational status anytime:`;
+
+        await callTelegramApi("editMessageText", {
+          chat_id: message.chat.id,
+          message_id: message.message_id,
+          text: msgText,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [[{ text: buttonText, callback_data: "tg_kitchen:toggle" }]],
+          },
+        });
+      }
+      return { success: true, message: `Kitchen toggled to ${next ? "open" : "closed"}` };
+    }
+
     if (data && data.startsWith("tg_")) {
       const parts = data.replace("tg_", "").split(":");
       const action = parts[0];
@@ -320,6 +357,7 @@ export async function handleTelegramWebhook(update: any): Promise<{ success: boo
         `You are authorized as Cafe Administrator.\n\n` +
         `<b>Available Commands:</b>\n` +
         `• /orders - View current active orders and update states\n` +
+        `• /kitchen - View or toggle Kitchen Open/Closed status\n` +
         `• /sales - View today's total revenue & orders count\n` +
         `• /help - Display this instructions menu\n\n` +
         `⚡ Whenever a new dine-in or delivery order is placed, you will automatically receive an instant notification here with interactive action buttons!`;
@@ -375,6 +413,30 @@ export async function handleTelegramWebhook(update: any): Promise<{ success: boo
         parse_mode: "HTML",
       });
       return { success: true, message: "Sent sales summary" };
+    }
+
+    if (text === "/kitchen") {
+      const { getPublicCafeStatus } = await import("@/services/admin-service");
+      const status = await getPublicCafeStatus();
+      const statusIcon = status.isOpen ? "🟢 OPEN" : "🔴 CLOSED";
+      const buttonText = status.isOpen ? "🔴 Close Kitchen" : "🟢 Open Kitchen";
+      const msgText =
+        `🍳 <b>Kitchen Operational Status</b>\n\n` +
+        `• <b>Status:</b> ${statusIcon}\n` +
+        `• <b>Schedule:</b> ${status.openingHours} daily\n` +
+        `• <b>Night Rule:</b> Automatically closed after 11:00 PM\n` +
+        `• <b>Details:</b> ${status.statusMessage}\n\n` +
+        `Tap below to toggle kitchen operational status anytime:`;
+
+      await callTelegramApi("sendMessage", {
+        chat_id: chatId,
+        text: msgText,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [[{ text: buttonText, callback_data: "tg_kitchen:toggle" }]],
+        },
+      });
+      return { success: true, message: "Sent kitchen status" };
     }
   }
 

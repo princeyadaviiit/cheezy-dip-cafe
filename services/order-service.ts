@@ -15,10 +15,24 @@ export type { OrderRecord };
 import { PlaceOrderSchema, type PlaceOrderInput } from "@/lib/orders/order-schema";
 export type { PlaceOrderInput };
 import { sendTelegramOrderAlert } from "@/services/telegram-service";
+import { getPublicCafeStatus } from "@/services/admin-service";
 
 export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord> {
   const input = PlaceOrderSchema.parse(rawInput);
   const session = await getAuthSession();
+
+  // 0. Verify Kitchen Operational Status (Admin toggle: Open / Closed)
+  const cafeStatus = await getPublicCafeStatus();
+  if (!cafeStatus.isOpen) {
+    throw new Error(
+      "KITCHEN_CLOSED: Cheezy Dip Cafe kitchen is currently CLOSED. We are not accepting orders right now. The kitchen will reopen soon!"
+    );
+  }
+  if (input.orderType === "delivery" && !cafeStatus.deliveryEnabled) {
+    throw new Error(
+      "DELIVERY_PAUSED: Doorstep delivery is temporarily paused by the cafe. Please try again shortly."
+    );
+  }
 
   // 1. Resolve Table Context for Dine-In (Table ID is NEVER from request body)
   let tableId: string | undefined;
@@ -28,7 +42,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
     const tableCtx = await getTableContext();
     if (!tableCtx) {
       throw new Error(
-        "DINE_IN_ERROR: No active table session found. Please scan the QR code located on your table."
+        "DINE_IN_ERROR: Dine-in ordering is strictly available only after physically scanning the QR code on your table."
       );
     }
     tableId = tableCtx.tableId;
@@ -39,9 +53,28 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
       throw new Error("DINE_IN_ERROR: Dine-in orders currently use Pay at counter.");
     }
   } else {
-    // Delivery validation
+    // Delivery validation: All delivery fields are strictly mandatory
     if (!input.deliveryAddressSnapshot) {
-      throw new Error("DELIVERY_ERROR: Delivery address is required for home delivery.");
+      throw new Error(
+        "DELIVERY_ERROR: Full delivery details (name, phone, street address, area, and pincode) are mandatory for doorstep delivery."
+      );
+    }
+    const { recipientName, phone, line1, area, pincode } = input.deliveryAddressSnapshot;
+    if (!recipientName || recipientName.trim().length < 2) {
+      throw new Error("DELIVERY_ERROR: Recipient full name is mandatory for delivery.");
+    }
+    const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+    if (!cleanPhone || cleanPhone.length < 10) {
+      throw new Error("DELIVERY_ERROR: A valid 10-digit mobile phone number is mandatory for delivery.");
+    }
+    if (!line1 || line1.trim().length < 3) {
+      throw new Error("DELIVERY_ERROR: Street address / house number is mandatory for delivery.");
+    }
+    if (!area || area.trim().length < 2) {
+      throw new Error("DELIVERY_ERROR: Delivery area / locality is mandatory.");
+    }
+    if (!pincode || !/^\d{6}$/.test(pincode.trim())) {
+      throw new Error("DELIVERY_ERROR: A valid 6-digit pincode is mandatory for delivery.");
     }
     if (input.paymentMethod !== "razorpay") {
       throw new Error("DELIVERY_ERROR: Delivery orders require online payment via Razorpay.");
