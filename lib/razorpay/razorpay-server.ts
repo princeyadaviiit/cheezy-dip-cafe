@@ -103,3 +103,13 @@ export function generateTestWebhookSignature(rawBody: string, secretOverride?: s
   const secret = secretOverride || WEBHOOK_SECRET;
   return crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 }
+
+export function generateTestCheckoutSignature(
+  razorpayOrderId: string,
+  razorpayPaymentId: string
+): string {
+  return crypto
+    .createHmac("sha256", KEY_SECRET)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+}

@@ -135,6 +135,44 @@ if (ORDERS_STORE.size === 0) {
     updatedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
   };
 
+  const initialOrder3: OrderRecord = {
+    id: "ord_demo_delivery",
+    orderNumber: "CD-103",
+    customerClerkId: "user_customer_delivery_demo",
+    contactPhone: "+919876543212",
+    orderType: "delivery",
+    orderStatus: "pending_payment",
+    paymentMethod: "razorpay",
+    paymentStatus: "pending",
+    deliveryAddressSnapshot: {
+      recipientName: "Aarav Sharma",
+      phone: "+919876543212",
+      line1: "Flat 402, Sunshine Apts",
+      area: "Raja Park",
+      pincode: "302004",
+      googleMapsUrl: "https://www.google.com/maps?q=26.892,75.826",
+    },
+    subtotalMinor: 25000,
+    discountMinor: 0,
+    deliveryFeeMinor: 3000,
+    taxMinor: 0,
+    totalMinor: 28000,
+    idempotencyKey: "seed_idem_003",
+    items: [
+      {
+        menuItemId: "burger-paneer-tikka",
+        nameSnapshot: "Paneer Tikka Burger",
+        unitPriceMinor: 25000,
+        quantity: 1,
+        modifiersSnapshot: [],
+        lineTotalMinor: 25000,
+      },
+    ],
+    placedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+  };
+
   ORDERS_STORE.set(initialOrder1.id, initialOrder1);
   ORDERS_STORE.set(initialOrder2.id, initialOrder2);
+  ORDERS_STORE.set(initialOrder3.id, initialOrder3);
 }

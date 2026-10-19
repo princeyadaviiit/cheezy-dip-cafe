@@ -12,20 +12,25 @@ import {
   verifyRazorpayCheckoutSignature,
   verifyRazorpayWebhookSignature,
   generateTestWebhookSignature,
+  generateTestCheckoutSignature,
 } from "@/lib/razorpay/razorpay-server";
 import {
+  initiateDeliveryPayment,
+  verifyDeliveryCheckoutPayment,
+  simulateTestModePayment,
   processRazorpayWebhook,
   expireStaleDeliveryOrders,
   processOrderRefund,
 } from "@/services/payment-service";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 
-// Mock staff auth
+// Mock staff & customer auth
 const mockRequireStaffAuth = vi.fn();
+const mockRequireCustomerAuth = vi.fn();
 vi.mock("@/lib/auth/server", () => ({
   requireStaffAuth: () => mockRequireStaffAuth(),
   getAuthSession: vi.fn(),
-  requireCustomerAuth: vi.fn(),
+  requireCustomerAuth: () => mockRequireCustomerAuth(),
 }));
 
 describe("Delivery Area & Pincode Validation", () => {
@@ -75,6 +80,10 @@ describe("Payment Service & Webhook State Engine", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRequireCustomerAuth.mockResolvedValue({
+      userId: "user_customer_deliv",
+      phone: "+919876543210",
+    });
 
     const order: OrderRecord = {
       id: deliveryOrderId,
@@ -273,5 +282,61 @@ describe("Payment Service & Webhook State Engine", () => {
     expect(refundResult.success).toBe(true);
     expect(refundResult.paymentStatus).toBe("refunded");
     expect(refundResult.orderStatus).toBe("cancelled");
+  });
+
+  it("initiates Razorpay delivery payment with exact order total in paise", async () => {
+    const rzpOrder = await initiateDeliveryPayment(deliveryOrderId);
+    expect(rzpOrder.razorpayOrderId).toBeDefined();
+    expect(rzpOrder.amountMinor).toBe(23000); // ₹230
+    expect(rzpOrder.currency).toBe("INR");
+  });
+
+  it("verifies genuine Razorpay checkout signature and marks order paid", async () => {
+    const rzpOrder = await initiateDeliveryPayment(deliveryOrderId);
+    const paymentId = "pay_checkout_valid_888";
+    const signature = generateTestCheckoutSignature(rzpOrder.razorpayOrderId, paymentId);
+
+    const result = await verifyDeliveryCheckoutPayment({
+      orderId: deliveryOrderId,
+      razorpayOrderId: rzpOrder.razorpayOrderId,
+      razorpayPaymentId: paymentId,
+      razorpaySignature: signature,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.paymentStatus).toBe("paid");
+    expect(result.orderStatus).toBe("placed");
+
+    const updated = ORDERS_STORE.get(deliveryOrderId);
+    expect(updated?.paymentStatus).toBe("paid");
+    expect(updated?.orderStatus).toBe("placed");
+    expect(updated?.razorpayPaymentId).toBe(paymentId);
+  });
+
+  it("rejects invalid Razorpay checkout signature", async () => {
+    const rzpOrder = await initiateDeliveryPayment(deliveryOrderId);
+    await expect(
+      verifyDeliveryCheckoutPayment({
+        orderId: deliveryOrderId,
+        razorpayOrderId: rzpOrder.razorpayOrderId,
+        razorpayPaymentId: "pay_tampered_999",
+        razorpaySignature: "invalid_hex_signature_deadbeef",
+      })
+    ).rejects.toThrow(/PAYMENT_VERIFICATION_FAILED/);
+
+    const order = ORDERS_STORE.get(deliveryOrderId);
+    expect(order?.paymentStatus).toBe("pending");
+    expect(order?.orderStatus).toBe("pending_payment");
+  });
+
+  it("simulates full Razorpay checkout payment cycle and marks order as paid", async () => {
+    const simResult = await simulateTestModePayment(deliveryOrderId);
+    expect(simResult.success).toBe(true);
+    expect(simResult.paymentStatus).toBe("paid");
+    expect(simResult.orderStatus).toBe("placed");
+
+    const order = ORDERS_STORE.get(deliveryOrderId);
+    expect(order?.paymentStatus).toBe("paid");
+    expect(order?.orderStatus).toBe("placed");
   });
 });

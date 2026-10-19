@@ -261,7 +261,7 @@ export default function LandingPage() {
           <Link href="/contact" className="hover:text-[var(--text)]">Contact</Link>
         </div>
         <p className="text-[11px] text-[var(--text-muted)]/80">
-          FSSAI License: 22824012000000 (Regd) • GST: 07AAAAA0000A1Z5
+          100% Pure Vegetarian Cafe • Raja Park, Jaipur
         </p>
         <p className="text-[10px] text-[var(--text-muted)]/60">
           © {new Date().getFullYear()} Cheezy dip cafe. All rights reserved.

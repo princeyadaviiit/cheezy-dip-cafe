@@ -35,12 +35,6 @@ export function BillModal({ order, isOpen, onClose }: BillModalProps) {
   const discountRs = Math.round((order.discountMinor || 0) / 100);
   const totalRs = Math.round(order.totalMinor / 100);
 
-  // 5% GST is inclusive: Taxable = Total / 1.05. CGST (2.5%) + SGST (2.5%)
-  const taxableValue = subtotalRs - discountRs;
-  const totalGst = Math.round(taxableValue * (5 / 105));
-  const cgst = (totalGst / 2).toFixed(2);
-  const sgst = (totalGst / 2).toFixed(2);
-
   const formattedDate = new Date(order.placedAt).toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -55,7 +49,7 @@ export function BillModal({ order, isOpen, onClose }: BillModalProps) {
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-[var(--brand-primary)]" />
             <h2 className="text-sm font-extrabold text-[var(--text)] font-display">
-              Tax Invoice & Receipt
+              Order Bill & Receipt
             </h2>
           </div>
           <button
@@ -85,12 +79,11 @@ export function BillModal({ order, isOpen, onClose }: BillModalProps) {
             <p className="text-[10px] text-stone-500 dark:text-stone-400">
               Phone: +91 98765 43210 • hello@cheezydipcafe.com
             </p>
-            <div className="pt-1 text-[10px] font-mono text-stone-500 dark:text-stone-400 flex flex-wrap justify-center gap-x-3">
-              <span>FSSAI: 22224074000123</span>
-              <span>GSTIN: 08AABCC1234D1Z5</span>
-            </div>
+            <p className="text-[10px] text-stone-500 dark:text-stone-400 font-medium">
+              100% Pure Vegetarian Cafe
+            </p>
             <div className="mt-1 inline-block px-2.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-black text-[10px] uppercase tracking-wider">
-              Tax Invoice / Bill of Supply
+              Order Bill & Receipt
             </div>
           </div>
 
@@ -176,14 +169,6 @@ export function BillModal({ order, isOpen, onClose }: BillModalProps) {
                 <span className="font-semibold">₹{deliveryFeeRs}</span>
               </div>
             )}
-            <div className="flex justify-between text-[10px] text-stone-500 dark:text-stone-400 pt-1">
-              <span>CGST (2.5% inclusive)</span>
-              <span>₹{cgst}</span>
-            </div>
-            <div className="flex justify-between text-[10px] text-stone-500 dark:text-stone-400">
-              <span>SGST (2.5% inclusive)</span>
-              <span>₹{sgst}</span>
-            </div>
           </div>
 
           {/* Grand Total */}

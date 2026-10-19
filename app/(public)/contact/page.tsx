@@ -63,17 +63,16 @@ export default function ContactPage() {
         </div>
       </div>
 
-      {/* Official Business Registration */}
+      {/* Cafe Information */}
       <section className="p-4 rounded-2xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-2 text-xs shadow-xs">
         <h3 className="font-bold text-[var(--text)] text-sm border-b border-[var(--border)] pb-1.5 flex items-center justify-between">
-          <span>Regulatory Compliance</span>
+          <span>Cafe Details</span>
           <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
         </h3>
         <div className="space-y-1.5 text-[var(--text-muted)]">
-          <p>Legal Entity: <span className="text-[var(--text)] font-semibold">Cheezy Dip Cafe & Foodworks</span></p>
-          <p>FSSAI Registration No: <span className="text-[var(--text)] font-mono font-bold">22224074000123</span></p>
-          <p>GSTIN: <span className="text-[var(--text)] font-mono font-bold">08AABCC1234D1Z5</span></p>
+          <p>Cafe Entity: <span className="text-[var(--text)] font-semibold">Cheezy Dip Cafe</span></p>
           <p>Food Category: <span className="text-emerald-600 dark:text-emerald-400 font-bold">100% Pure Vegetarian Cafe</span></p>
+          <p>Location: <span className="text-[var(--text)] font-semibold">Raja Park, Jaipur, Rajasthan</span></p>
         </div>
       </section>
     </article>

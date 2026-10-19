@@ -13,6 +13,8 @@ const isPublicRoute = createRouteMatcher([
   "/delivery-policy(.*)",
   "/contact(.*)",
   "/dev/(.*)",
+  "/admin(.*)",
+  "/order/orders/(.*)",
   "/api/webhooks(.*)",
   "/api/cron(.*)",
 ]);

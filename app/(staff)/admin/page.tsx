@@ -993,7 +993,7 @@ export default function AdminPage() {
                           size="sm"
                           onClick={() => setBillOrder(order)}
                           className="text-xs font-bold min-h-[44px] px-3 flex items-center gap-1 cursor-pointer text-[var(--text-muted)] hover:text-[var(--text)] border-[var(--border)]"
-                          title="Print / View Bill & Tax Invoice"
+                          title="Print / View Bill & Receipt"
                         >
                           <Receipt className="w-3.5 h-3.5" />
                           <span>Bill</span>
@@ -1498,7 +1498,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Tax Invoice & Billing Modal */}
+      {/* Bill & Receipt Modal */}
       {billOrder && (
         <BillModal
           order={billOrder}

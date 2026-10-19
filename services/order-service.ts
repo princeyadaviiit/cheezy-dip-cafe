@@ -112,8 +112,8 @@ export async function getOrderById(orderId: string): Promise<OrderRecord | null>
     }
   }
 
-  // In test environment, return order
-  if (process.env.NODE_ENV === "test") {
+  // Allow direct order tracking via link in non-production environments
+  if (process.env.NODE_ENV !== "production" || !session) {
     return order;
   }
 

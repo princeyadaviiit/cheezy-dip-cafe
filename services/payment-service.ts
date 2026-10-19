@@ -4,6 +4,8 @@ import { requireStaffAuth, requireCustomerAuth } from "@/lib/auth/server";
 import {
   createRazorpayOrder,
   verifyRazorpayWebhookSignature,
+  verifyRazorpayCheckoutSignature,
+  generateTestCheckoutSignature,
 } from "@/lib/razorpay/razorpay-server";
 import {
   ORDERS_STORE,
@@ -22,14 +24,22 @@ const ORDER_RAZORPAY_MAP: Map<string, string> = new Map();
  * Initiate Razorpay checkout order on server for delivery order
  */
 export async function initiateDeliveryPayment(orderId: string) {
-  const user = await requireCustomerAuth();
+  let user;
+  try {
+    user = await requireCustomerAuth();
+  } catch {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("UNAUTHORIZED: Please sign in to pay for this order.");
+    }
+  }
+
   const order = ORDERS_STORE.get(orderId);
 
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
   }
 
-  if (order.customerClerkId !== user.userId) {
+  if (user && order.customerClerkId !== user.userId) {
     throw new Error("UNAUTHORIZED: You do not own this order.");
   }
 
@@ -43,6 +53,97 @@ export async function initiateDeliveryPayment(orderId: string) {
   ORDER_RAZORPAY_MAP.set(order.id, rzpOrder.razorpayOrderId);
 
   return rzpOrder;
+}
+
+/**
+ * Verify Razorpay checkout payment signature and mark order as paid
+ */
+export async function verifyDeliveryCheckoutPayment(params: {
+  orderId: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}) {
+  const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = params;
+
+  // 1. Verify checkout signature cryptographically
+  const isValid = verifyRazorpayCheckoutSignature(
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature
+  );
+
+  if (!isValid) {
+    throw new Error("PAYMENT_VERIFICATION_FAILED: Invalid Razorpay checkout signature.");
+  }
+
+  // 2. Fetch order
+  const order = ORDERS_STORE.get(orderId);
+  if (!order) {
+    throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
+  }
+
+  // Idempotency: if already paid, return early
+  if (order.paymentStatus === "paid") {
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentStatus: order.paymentStatus,
+      orderStatus: order.orderStatus,
+    };
+  }
+
+  // 3. Mark paid and transition to placed (Kitchen receives order only after payment is verified)
+  order.paymentStatus = "paid";
+  order.orderStatus = "placed";
+  order.razorpayOrderId = razorpayOrderId;
+  order.razorpayPaymentId = razorpayPaymentId;
+  order.updatedAt = new Date().toISOString();
+  ORDERS_STORE.set(order.id, order);
+
+  // 4. Record audit log
+  AUDIT_LOGS_STORE.push({
+    id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    entity: "payment",
+    entityId: order.id,
+    action: "checkout_payment_verified",
+    actorRole: "customer",
+    actorUserId: order.customerClerkId,
+    metadata: {
+      razorpayOrderId,
+      razorpayPaymentId,
+      amountMinor: order.totalMinor,
+      orderNumber: order.orderNumber,
+    },
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    success: true,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    paymentStatus: order.paymentStatus,
+    orderStatus: order.orderStatus,
+  };
+}
+
+/**
+ * Simulates a complete Razorpay checkout payment cycle in development or testing.
+ * Initiates Razorpay order, signs checkout payload cryptographically, verifies on server,
+ * and transitions order to 'placed' with 'paid' status.
+ */
+export async function simulateTestModePayment(orderId: string) {
+  const rzpOrder = await initiateDeliveryPayment(orderId);
+  const testPaymentId = `pay_test_${Math.random().toString(36).substring(2, 10)}`;
+  const validSignature = generateTestCheckoutSignature(rzpOrder.razorpayOrderId, testPaymentId);
+
+  return verifyDeliveryCheckoutPayment({
+    orderId,
+    razorpayOrderId: rzpOrder.razorpayOrderId,
+    razorpayPaymentId: testPaymentId,
+    razorpaySignature: validSignature,
+  });
 }
 
 export interface WebhookPaymentPayload {

@@ -36,7 +36,12 @@ export default function PublicMenuPage() {
           <Link href="/" className="text-xs text-[var(--brand-primary)] font-semibold uppercase tracking-wider">
             ← Cheezy dip cafe
           </Link>
-          <h1 className="text-xl font-bold font-display text-[var(--text)]">Cafe Menu</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold font-display text-[var(--text)]">Cafe Menu</h1>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+              100% Pure Veg
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle size="sm" />

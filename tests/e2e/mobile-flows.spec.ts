@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
-  test("Landing page displays hero, dual CTAs visible above fold, and FSSAI details", async ({
+  test("Landing page displays hero, dual CTAs visible above fold, and cafe footer details", async ({
     page,
   }) => {
     await page.goto("/");
@@ -9,19 +9,19 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     // Heading & Hero
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Cheezy dip");
 
-    // Dual CTAs: View Menu and Order Now
-    const viewMenuBtn = page.getByRole("link", { name: /view menu/i });
-    const orderNowBtn = page.getByRole("link", { name: /order/i }).first();
-    await expect(viewMenuBtn).toBeVisible();
+    // Dual CTAs: Order Now and View Full Menu
+    const orderNowBtn = page.getByRole("button", { name: /order now/i });
+    const viewMenuBtn = page.getByRole("button", { name: /view full menu/i });
     await expect(orderNowBtn).toBeVisible();
+    await expect(viewMenuBtn).toBeVisible();
 
     // Verify touch targets >= 44px
-    const box = await viewMenuBtn.boundingBox();
+    const box = await orderNowBtn.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
 
-    // Legal footer contains FSSAI & GST details
-    await expect(page.locator("body")).toContainText("22224074000123");
-    await expect(page.locator("body")).toContainText("08AABCC1234D1Z5");
+    // Footer contains pure veg and location details
+    await expect(page.locator("body")).toContainText("100% Pure Vegetarian Cafe");
+    await expect(page.locator("body")).toContainText("Raja Park, Jaipur");
   });
 
   test("Public menu displays categories, search, and dish items with prices", async ({
@@ -30,7 +30,7 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     await page.goto("/menu");
 
     // Check menu title and category tabs
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Our Menu");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Cafe Menu");
     await expect(page.getByRole("button", { name: /all/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /burgers/i })).toBeVisible();
 
@@ -39,13 +39,13 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     await expect(page.locator("body")).toContainText("100% Pure Veg");
   });
 
-  test("Legal pages load with authentic policies, FSSAI and contact helpline", async ({
+  test("Legal pages load with authentic policies and contact helpline", async ({
     page,
   }) => {
     // Terms
     await page.goto("/terms");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Terms of Service");
-    await expect(page.locator("body")).toContainText("FSSAI");
+    await expect(page.locator("body")).toContainText("Pure Vegetarian");
 
     // Privacy
     await page.goto("/privacy");
@@ -70,9 +70,9 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
 
   test("Style tile verifies typography and >=44px touch targets", async ({ page }) => {
     await page.goto("/dev/style-tile");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Cheezy Dip Cafe Design System");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Cheezy dip cafe");
 
-    const primaryButton = page.getByRole("button", { name: /primary action/i });
+    const primaryButton = page.getByRole("button", { name: /order now/i }).first();
     await expect(primaryButton).toBeVisible();
     const btnBox = await primaryButton.boundingBox();
     expect(btnBox?.height).toBeGreaterThanOrEqual(44);
@@ -104,5 +104,26 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     // After entering passkey, it must NOT log straight into operations, but show Clerk Staff Login!
     await expect(page.locator("body")).toContainText("Gate Passkey Verified");
     await expect(page.locator("body")).toContainText("Staff & Admin Login");
+  });
+
+  test("Razorpay payment page loads for delivery order, processes payment, and verifies paid status", async ({
+    page,
+  }) => {
+    await page.goto("/order/orders/ord_demo_delivery");
+
+    // Check order header
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Order CD-103");
+
+    // Must show Payment Required to Start Cooking
+    await expect(page.locator("body")).toContainText("Payment Required to Start Cooking");
+    await expect(page.locator("body")).toContainText("₹280");
+
+    // Click Razorpay pay button
+    const payBtn = page.getByRole("button", { name: /pay ₹280 via razorpay/i });
+    await expect(payBtn).toBeVisible();
+    await payBtn.click();
+
+    // After click, server cryptographically verifies signature and updates state to paid
+    await expect(page.locator("body")).toContainText("Paid via Razorpay (Prepaid Verified)");
   });
 });

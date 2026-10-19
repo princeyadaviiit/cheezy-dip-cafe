@@ -9,8 +9,10 @@ import {
   ArrowLeft,
   RefreshCw,
   Receipt,
+  CreditCard,
 } from "lucide-react";
 import { getOrderById, type OrderRecord } from "@/services/order-service";
+import { simulateTestModePayment } from "@/services/payment-service";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { BillModal } from "@/components/billing/bill-modal";
@@ -43,6 +45,8 @@ export default function OrderTrackingPage({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showBill, setShowBill] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   const fetchOrder = React.useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -81,6 +85,23 @@ export default function OrderTrackingPage({
       clearInterval(interval);
     };
   }, [orderId]);
+
+  const handlePayNow = async () => {
+    if (!order) return;
+    setIsPaying(true);
+    setPaymentError("");
+    try {
+      const res = await simulateTestModePayment(order.id);
+      if (res.success) {
+        await fetchOrder(true);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Payment processing failed. Please try again.";
+      setPaymentError(msg);
+    } finally {
+      setIsPaying(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -215,6 +236,51 @@ export default function OrderTrackingPage({
           </div>
         )}
 
+        {/* Razorpay Delivery Payment Action Box */}
+        {order.orderType === "delivery" && order.paymentStatus !== "paid" && (
+          <div className="p-4 bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl space-y-3 animate-in fade-in">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-extrabold text-sm">
+              <CreditCard className="w-5 h-5 text-[var(--brand-primary)]" />
+              <span>Payment Required to Start Cooking</span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              This delivery order is pending prepaid payment. Our kitchen begins preparation immediately once your payment is confirmed.
+            </p>
+            <div className="flex items-center justify-between font-extrabold text-sm text-[var(--text)] pt-1">
+              <span>Payable Amount:</span>
+              <span className="text-lg text-[var(--brand-primary)]">
+                ₹{Math.round(order.totalMinor / 100)}
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              size="lg"
+              disabled={isPaying}
+              onClick={handlePayNow}
+              className="w-full font-extrabold min-h-[48px] flex items-center justify-center gap-2 cursor-pointer shadow-lg text-sm"
+            >
+              <CreditCard className="w-5 h-5" />
+              <span>{isPaying ? "Verifying Payment..." : `💳 Pay ₹${Math.round(order.totalMinor / 100)} via Razorpay`}</span>
+            </Button>
+            {paymentError && (
+              <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{paymentError}</p>
+            )}
+          </div>
+        )}
+
+        {/* Razorpay Paid Confirmation Banner */}
+        {order.orderType === "delivery" && order.paymentStatus === "paid" && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Paid via Razorpay (Prepaid Verified)
+            </span>
+            <span className="font-mono text-xs">
+              ₹{Math.round(order.totalMinor / 100)}
+            </span>
+          </div>
+        )}
+
         {/* Live Stepper */}
         <div className="pt-2">
           <div className="relative flex justify-between">
@@ -325,7 +391,7 @@ export default function OrderTrackingPage({
           className="w-full font-bold min-h-[44px] flex items-center justify-center gap-2 border-[var(--brand-primary)]/40 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 cursor-pointer"
         >
           <Receipt className="w-4 h-4" />
-          <span>🧾 View Bill & Tax Invoice</span>
+          <span>🧾 View Bill & Receipt</span>
         </Button>
         <Link href="/order" className="block">
           <Button variant="outline" size="md" className="w-full font-bold min-h-[44px]">

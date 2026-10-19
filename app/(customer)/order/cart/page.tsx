@@ -310,10 +310,6 @@ export default function CartPage() {
           <span>Delivery Partner Fee</span>
           <span className="text-[var(--text)] font-semibold">{orderType === "dine_in" ? "FREE (Dine-in)" : "₹30"}</span>
         </div>
-        <div className="flex justify-between text-[var(--text-muted)] text-[11px]">
-          <span>Taxes (GST)</span>
-          <span>Included in prices</span>
-        </div>
         <div className="pt-2 border-t border-[var(--border)] flex justify-between items-center text-sm font-extrabold text-[var(--text)]">
           <span>To Pay</span>
           <span className="text-base text-[var(--brand-primary)]">

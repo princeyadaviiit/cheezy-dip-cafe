@@ -38,30 +38,29 @@ export default function TermsPage() {
       <section className="space-y-2.5 text-xs leading-relaxed">
         <h2 className="text-sm font-bold text-[var(--text)]">3. Pricing & Payment</h2>
         <p className="text-[var(--text-muted)]">
-          All menu prices are displayed in Indian Rupees (₹) and are inclusive of Goods & Services Tax (GST). Delivery orders require advance payment via our authorized payment partner, Razorpay. Dine-in orders are payable in Cash or UPI at the cafe counter. Prices are calculated strictly on our secure servers and cannot be altered by client input.
+          All menu prices are displayed in Indian Rupees (₹). Delivery orders require advance payment via our authorized payment partner, Razorpay. Dine-in orders are payable in Cash or UPI at the cafe counter. Prices are calculated strictly on our secure servers and cannot be altered by client input.
         </p>
       </section>
 
       <section className="space-y-2.5 text-xs leading-relaxed">
         <h2 className="text-sm font-bold text-[var(--text)]">4. Food Hygiene & 100% Pure Veg Commitment</h2>
         <p className="text-[var(--text-muted)]">
-          Cheezy dip cafe operates as a 100% Pure Vegetarian kitchen certified under the Food Safety and Standards Authority of India (FSSAI). All ingredients, cheeses, oils, and garnishes comply strictly with vegetarian food preparation standards.
+          Cheezy dip cafe operates as a 100% Pure Vegetarian kitchen. All ingredients, cheeses, oils, and garnishes comply strictly with pure vegetarian food preparation standards.
         </p>
       </section>
 
       <section className="space-y-2.5 text-xs leading-relaxed">
-        <h2 className="text-sm font-bold text-[var(--text)]">5. Food Safety & Regulatory Information</h2>
+        <h2 className="text-sm font-bold text-[var(--text)]">5. Cafe & Location Information</h2>
         <div className="p-3.5 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-1 shadow-xs">
           <p className="font-semibold text-[var(--text)]">Cheezy dip cafe</p>
-          <p className="text-[var(--text-muted)]">FSSAI Registration No: <span className="text-[var(--text)] font-mono font-bold">22224074000123</span></p>
-          <p className="text-[var(--text-muted)]">GSTIN: <span className="text-[var(--text)] font-mono font-bold">08AABCC1234D1Z5</span></p>
+          <p className="text-[var(--text-muted)]">Category: <span className="text-emerald-600 dark:text-emerald-400 font-semibold">100% Pure Vegetarian Kitchen</span></p>
           <p className="text-[var(--text-muted)]">Location: Main Market, Raja Park, Jaipur, Rajasthan 302004</p>
         </div>
       </section>
 
       <div className="pt-4 border-t border-[var(--border)] flex items-center gap-2 text-xs text-[var(--text-muted)]">
         <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-        <span>FSSAI Certified Pure Veg Kitchen • Cheezy dip cafe</span>
+        <span>100% Pure Veg Kitchen • Cheezy dip cafe</span>
       </div>
     </article>
   );
