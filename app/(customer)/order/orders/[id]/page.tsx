@@ -8,10 +8,12 @@ import {
   Utensils,
   ArrowLeft,
   RefreshCw,
+  Receipt,
 } from "lucide-react";
 import { getOrderById, type OrderRecord } from "@/services/order-service";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { BillModal } from "@/components/billing/bill-modal";
 
 const DINE_IN_STEPS = [
   { status: "placed", label: "Placed", desc: "Received by kitchen" },
@@ -40,6 +42,7 @@ export default function OrderTrackingPage({
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showBill, setShowBill] = useState(false);
 
   const fetchOrder = React.useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -315,17 +318,34 @@ export default function OrderTrackingPage({
 
       {/* Action Buttons */}
       <div className="pt-2 space-y-2">
+        <Button
+          variant="outline"
+          size="md"
+          onClick={() => setShowBill(true)}
+          className="w-full font-bold min-h-[44px] flex items-center justify-center gap-2 border-[var(--brand-primary)]/40 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 cursor-pointer"
+        >
+          <Receipt className="w-4 h-4" />
+          <span>🧾 View Bill & Tax Invoice</span>
+        </Button>
         <Link href="/order" className="block">
-          <Button variant="outline" size="md" className="w-full font-bold">
+          <Button variant="outline" size="md" className="w-full font-bold min-h-[44px]">
             + Order More Items
           </Button>
         </Link>
         <Link href="/order/orders" className="block">
-          <Button variant="ghost" size="sm" className="w-full text-xs text-[var(--text-muted)]">
+          <Button variant="ghost" size="sm" className="w-full text-xs text-[var(--text-muted)] min-h-[44px]">
             View All Past Orders
           </Button>
         </Link>
       </div>
+
+      {showBill && (
+        <BillModal
+          order={order}
+          isOpen={showBill}
+          onClose={() => setShowBill(false)}
+        />
+      )}
     </div>
   );
 }

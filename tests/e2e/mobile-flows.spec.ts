@@ -77,4 +77,32 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     const btnBox = await primaryButton.boundingBox();
     expect(btnBox?.height).toBeGreaterThanOrEqual(44);
   });
+
+  test("Admin portal enforces master gatekeeper, >=44px targets, and Clerk auth flow", async ({
+    page,
+  }) => {
+    await page.goto("/admin");
+
+    // Must show Master Passkey gate first
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Admin & Operations Gate");
+    const unlockBtn = page.getByRole("button", { name: /unlock admin portal/i });
+    await expect(unlockBtn).toBeVisible();
+
+    // Verify touch target >= 44px
+    const unlockBox = await unlockBtn.boundingBox();
+    expect(unlockBox?.height).toBeGreaterThanOrEqual(44);
+
+    // Enter incorrect passkey
+    await page.getByPlaceholder(/enter admin master passkey/i).fill("wrongpass");
+    await unlockBtn.click();
+    await expect(page.locator("body")).toContainText(/invalid admin passkey/i);
+
+    // Enter correct passkey
+    await page.getByPlaceholder(/enter admin master passkey/i).fill("cheezy2026");
+    await unlockBtn.click();
+
+    // After entering passkey, it must NOT log straight into operations, but show Clerk Staff Login!
+    await expect(page.locator("body")).toContainText("Gate Passkey Verified");
+    await expect(page.locator("body")).toContainText("Staff & Admin Login");
+  });
 });

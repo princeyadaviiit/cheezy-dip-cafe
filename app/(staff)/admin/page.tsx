@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -30,8 +30,9 @@ import {
   RefreshCw,
   Check,
   AlertTriangle,
+  Receipt,
 } from "lucide-react";
-import { UserButton, Show } from "@clerk/nextjs";
+import { UserButton, Show, useUser, SignIn, SignOutButton } from "@clerk/nextjs";
 import {
   getAllAdminOrders,
   getAdminMenuCatalog,
@@ -45,6 +46,7 @@ import {
   toggleStaffStatus,
   getCurrentStaffStatus,
   setDevStaffRole,
+  claimAdminRoleForCurrentUser,
 } from "@/services/admin-service";
 import {
   transitionOrderStatus,
@@ -60,6 +62,7 @@ import { type OrderRecord } from "@/lib/orders/order-store";
 import { type OrderStatus, StatusBadge } from "@/components/ui/status-badge";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { BillModal } from "@/components/billing/bill-modal";
 
 // Web Audio API chime generator for incoming orders
 function playOrderAlertChime() {
@@ -95,6 +98,10 @@ function playOrderAlertChime() {
 }
 
 export default function AdminPage() {
+  // Clerk Auth State
+  const { isSignedIn, user, isLoaded: isClerkLoaded } = useUser();
+  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
+
   // Gatekeeper state
   const [isGateUnlocked, setIsGateUnlocked] = useState<boolean | null>(null);
   const [gatePasskey, setGatePasskey] = useState("");
@@ -149,6 +156,7 @@ export default function AdminPage() {
 
   // New order pop-up modal state
   const [newOrderAlert, setNewOrderAlert] = useState<OrderRecord | null>(null);
+  const [billOrder, setBillOrder] = useState<OrderRecord | null>(null);
   const seenOrderIdsRef = useRef<Set<string>>(new Set());
   const initialLoadRef = useRef(false);
 
@@ -196,8 +204,20 @@ export default function AdminPage() {
     setGatePasskey("");
   };
 
-  // Data fetching callback
-  const fetchData = useCallback(async () => {
+  const handleClaimAdmin = async () => {
+    setIsClaimingAdmin(true);
+    try {
+      await claimAdminRoleForCurrentUser();
+      await fetchData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to activate admin status");
+    } finally {
+      setIsClaimingAdmin(false);
+    }
+  };
+
+  // Data fetching function
+  const fetchData = async () => {
     try {
       const [ords, menu, sett, tbls, staff, report, currentStatus] = await Promise.all([
         getAllAdminOrders(),
@@ -246,23 +266,28 @@ export default function AdminPage() {
         setAuthError(msg);
       }
     }
-  }, [reportTimeframe, soundEnabled]);
+  };
+
+  const fetchDataRef = useRef(fetchData);
+  useEffect(() => {
+    fetchDataRef.current = fetchData;
+  });
 
   // Initial and recurring poll every 4 seconds
   useEffect(() => {
-    if (!isGateUnlocked) return;
+    if (!isGateUnlocked || !isSignedIn) return;
     let active = true;
 
     const timer = setTimeout(() => {
       if (active) {
-        fetchData();
+        fetchDataRef.current();
       }
     }, 0);
 
     const interval = setInterval(() => {
       if (active) {
         setCurrentTime(Date.now());
-        fetchData();
+        fetchDataRef.current();
       }
     }, 4000);
 
@@ -271,7 +296,7 @@ export default function AdminPage() {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [isGateUnlocked, fetchData]);
+  }, [isGateUnlocked, isSignedIn]);
 
   // Handle Order Status Transition (Approve, Cook, Ready, Deliver)
   const handleTransition = async (orderId: string, toStatus: OrderStatus) => {
@@ -352,19 +377,19 @@ export default function AdminPage() {
     }
   };
 
-  // If Gatekeeper status is still loading
-  if (isGateUnlocked === null) {
+  // 1. If Gatekeeper or Clerk status is still loading
+  if (isGateUnlocked === null || !isClerkLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-        <div className="w-8 h-8 border-3 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-4">
+        <div className="w-9 h-9 border-3 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  // GATEKEEPER SCREEN (Passkey Required)
+  // 2. STAGE 1: GATEKEEPER SCREEN (Master Passkey Required)
   if (!isGateUnlocked) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-3 sm:p-4">
         <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-6 shadow-xl space-y-5 text-center">
           <div className="w-14 h-14 rounded-2xl bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30 text-[var(--brand-primary)] flex items-center justify-center mx-auto">
             <Lock className="w-7 h-7" />
@@ -389,10 +414,10 @@ export default function AdminPage() {
           <form onSubmit={handleUnlockGate} className="space-y-3">
             <input
               type="password"
-              placeholder="Enter Admin Passkey (e.g. cheezy2026)"
+              placeholder="Enter Admin Master Passkey"
               value={gatePasskey}
               onChange={(e) => setGatePasskey(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-sm bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] text-center tracking-wider"
+              className="w-full px-3.5 py-2.5 text-sm bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] text-center tracking-wider min-h-[44px]"
               autoFocus
             />
 
@@ -400,15 +425,123 @@ export default function AdminPage() {
               type="submit"
               variant="primary"
               disabled={gateSubmitting}
-              className="w-full h-11 font-bold text-sm"
+              className="w-full min-h-[44px] font-bold text-sm cursor-pointer"
             >
               {gateSubmitting ? "Verifying..." : "Unlock Admin Portal"}
             </Button>
           </form>
 
           <p className="text-[11px] text-[var(--text-muted)] pt-2 border-t border-[var(--border)]">
-            Single-sign authorization persists for 30 days on this device.
+            One-time master gate authorization persists for 30 days on this browser.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. STAGE 2: CLERK AUTHENTICATION (Gate is Unlocked, but User is NOT Signed in to Clerk)
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-3 sm:p-4">
+        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="text-center space-y-1.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+              <Unlock className="w-6 h-6" />
+            </div>
+            <span className="inline-block text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              Gate Passkey Verified
+            </span>
+            <h1 className="text-lg font-extrabold font-display text-[var(--text)]">
+              Staff & Admin Login
+            </h1>
+            <p className="text-xs text-[var(--text-muted)]">
+              Log in to your admin account or sign up to manage cafe operations, orders, and kitchen.
+            </p>
+          </div>
+
+          <div className="w-full flex justify-center">
+            <SignIn
+              routing="hash"
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  card: "bg-transparent shadow-none border-0 p-0 text-[var(--text)] w-full",
+                  headerTitle: "hidden",
+                  headerSubtitle: "hidden",
+                  formButtonPrimary:
+                    "bg-[var(--brand-primary)] hover:opacity-90 text-white font-bold text-xs py-2.5 rounded-xl min-h-[44px] w-full",
+                  formFieldInput:
+                    "rounded-xl bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] min-h-[44px]",
+                  footerActionLink: "text-[var(--brand-primary)] hover:underline font-semibold text-xs",
+                },
+              }}
+            />
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleLockGate}
+              className="text-xs font-semibold text-[var(--text-muted)] hover:text-red-500 flex items-center gap-1 cursor-pointer min-h-[44px] px-2"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Lock Gate</span>
+            </button>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              Admin Subdomain
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. STAGE 3: STAFF ROLE ACTIVATION (Signed in with Clerk, Passkey Verified, but Account Not Linked to Staff)
+  if (!currentStaff.role && !authError) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-3 sm:p-4">
+        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="text-center space-y-1.5">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30 text-[var(--brand-primary)] flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <h1 className="text-lg font-extrabold font-display text-[var(--text)]">
+              Activate Admin Account
+            </h1>
+            <p className="text-xs text-[var(--text-muted)]">
+              Signed in as <strong className="text-[var(--text)]">{user?.primaryEmailAddress?.emailAddress || user?.fullName || "Staff Member"}</strong>.
+            </p>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              Your Master Gate passkey is verified. Activate this Clerk account to access live orders, kitchen display, and cafe management.
+            </p>
+          </div>
+
+          <Button
+            variant="primary"
+            onClick={handleClaimAdmin}
+            disabled={isClaimingAdmin}
+            className="w-full min-h-[44px] font-bold text-sm cursor-pointer"
+          >
+            {isClaimingAdmin ? "Activating Admin..." : "👑 Activate as Cafe Admin"}
+          </Button>
+
+          <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+            <SignOutButton>
+              <button
+                type="button"
+                className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text)] min-h-[44px] px-2 cursor-pointer"
+              >
+                Sign Out / Switch
+              </button>
+            </SignOutButton>
+            <button
+              type="button"
+              onClick={handleLockGate}
+              className="text-xs font-semibold text-red-500 hover:underline min-h-[44px] px-2 cursor-pointer"
+            >
+              Lock Gate
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -432,7 +565,7 @@ export default function AdminPage() {
   const totalKitchen = staffList.filter((s) => s.role === "kitchen").length;
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-3 max-w-2xl mx-auto w-full pb-24 space-y-3 font-sans">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] px-3 py-3 max-w-md mx-auto w-full pb-28 space-y-3 font-sans">
       {/* Top Header */}
       <header className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
         <div className="flex items-center gap-2.5">
@@ -463,7 +596,7 @@ export default function AdminPage() {
               setSoundEnabled(next);
               if (next) playOrderAlertChime();
             }}
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
               soundEnabled
                 ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
                 : "bg-[var(--bg-raised)] border-[var(--border)] text-[var(--text-muted)]"
@@ -473,11 +606,13 @@ export default function AdminPage() {
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          <ThemeToggle size="sm" />
+          <div className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center">
+            <ThemeToggle size="sm" />
+          </div>
 
           {/* Clerk Profile */}
           <Show when="signed-in">
-            <div className="w-9 h-9 flex items-center justify-center">
+            <div className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center">
               <UserButton
                 appearance={{
                   elements: {
@@ -492,7 +627,7 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={handleLockGate}
-            className="w-9 h-9 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 flex items-center justify-center transition-colors cursor-pointer"
             title="Lock Admin Portal"
           >
             <Lock className="w-4 h-4" />
@@ -553,7 +688,7 @@ export default function AdminPage() {
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
                 isActive
                   ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] shadow-sm"
                   : "bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -582,7 +717,7 @@ export default function AdminPage() {
       {activeTab === "kitchen" && (
         <section className="space-y-3">
           {/* Sub-status filters */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <div className="flex items-center gap-1 bg-[var(--bg-inset)] p-1 rounded-xl border border-[var(--border)]">
               {[
                 { key: "incoming", label: "Incoming", count: orders.filter((o) => o.orderStatus === "placed").length },
@@ -594,7 +729,7 @@ export default function AdminPage() {
                   key={sub.key}
                   type="button"
                   onClick={() => setKitchenFilter(sub.key as typeof kitchenFilter)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 min-h-[44px] cursor-pointer ${
                     kitchenFilter === sub.key
                       ? "bg-[var(--bg-raised)] text-[var(--text)] shadow-xs border border-[var(--border)]"
                       : "text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -614,7 +749,7 @@ export default function AdminPage() {
               variant="outline"
               size="sm"
               onClick={fetchData}
-              className="text-xs h-8 px-2 flex items-center gap-1 text-[var(--text-muted)]"
+              className="text-xs h-11 min-h-[44px] px-3 flex items-center gap-1 text-[var(--text-muted)] cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Refresh</span>
@@ -711,7 +846,7 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2">
                           <a
                             href={`tel:${order.contactPhone || deliverySnap?.phone}`}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/20 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/20 transition-colors min-h-[44px]"
                           >
                             <PhoneCall className="w-3.5 h-3.5" />
                             <span>{order.contactPhone || deliverySnap?.phone || "Customer Call"}</span>
@@ -728,7 +863,7 @@ export default function AdminPage() {
                             href={mapsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors shadow-2xs"
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors shadow-2xs min-h-[44px]"
                           >
                             <MapPin className="w-3.5 h-3.5" />
                             <span>🗺️ Open in Google Maps</span>
@@ -784,13 +919,13 @@ export default function AdminPage() {
                         Total: ₹{Math.round(order.totalMinor / 100)}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {order.orderStatus === "placed" && (
                           <Button
                             variant="primary"
                             size="sm"
                             onClick={() => handleTransition(order.id, "preparing")}
-                            className="font-bold text-xs"
+                            className="font-bold text-xs min-h-[44px] px-3.5"
                           >
                             <Flame className="w-3.5 h-3.5 mr-1" />
                             Approve & Cook
@@ -802,7 +937,7 @@ export default function AdminPage() {
                             variant="primary"
                             size="sm"
                             onClick={() => handleTransition(order.id, "ready")}
-                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700"
+                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700 min-h-[44px] px-3.5"
                           >
                             <Check className="w-3.5 h-3.5 mr-1" />
                             Mark Ready
@@ -814,7 +949,7 @@ export default function AdminPage() {
                             variant="primary"
                             size="sm"
                             onClick={() => handleTransition(order.id, "served")}
-                            className="font-bold text-xs"
+                            className="font-bold text-xs min-h-[44px] px-3.5"
                           >
                             Serve to Table
                           </Button>
@@ -825,7 +960,7 @@ export default function AdminPage() {
                             variant="primary"
                             size="sm"
                             onClick={() => handleTransition(order.id, "out_for_delivery")}
-                            className="font-bold text-xs"
+                            className="font-bold text-xs min-h-[44px] px-3.5"
                           >
                             Out for Delivery
                           </Button>
@@ -836,7 +971,7 @@ export default function AdminPage() {
                             variant="primary"
                             size="sm"
                             onClick={() => handleTransition(order.id, "delivered")}
-                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700"
+                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700 min-h-[44px] px-3.5"
                           >
                             Mark Delivered
                           </Button>
@@ -847,11 +982,22 @@ export default function AdminPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleMarkPaid(order.id)}
-                            className="text-xs font-bold text-emerald-600 border-emerald-500/30"
+                            className="text-xs font-bold text-emerald-600 border-emerald-500/30 min-h-[44px] px-3"
                           >
                             Mark Paid at Counter
                           </Button>
                         )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setBillOrder(order)}
+                          className="text-xs font-bold min-h-[44px] px-3 flex items-center gap-1 cursor-pointer text-[var(--text-muted)] hover:text-[var(--text)] border-[var(--border)]"
+                          title="Print / View Bill & Tax Invoice"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          <span>Bill</span>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -919,6 +1065,21 @@ export default function AdminPage() {
 
                   <div className="text-[11px] text-[var(--text-muted)]">
                     {order.items.map((i) => `${i.quantity}x ${i.nameSnapshot}`).join(", ")}
+                  </div>
+
+                  <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between">
+                    <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                      {order.items.reduce((acc, i) => acc + i.quantity, 0)} items • {order.paymentStatus === "paid" ? "✓ Paid" : "Payment Pending"}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBillOrder(order)}
+                      className="text-xs font-bold min-h-[44px] px-3 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-[var(--brand-primary)]" />
+                      <span>Print Bill</span>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1026,7 +1187,7 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => handleToggleStaff(member.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[44px] ${
                         member.isActive
                           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                           : "bg-stone-500/10 text-stone-500 border border-stone-500/30"
@@ -1057,7 +1218,7 @@ export default function AdminPage() {
 
           <div className="divide-y divide-[var(--border)] bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] overflow-hidden">
             {filteredMenu.map((item) => (
-              <div key={item.id} className="p-3 flex items-center justify-between text-xs">
+              <div key={item.id} className="p-3.5 flex items-center justify-between text-xs">
                 <div>
                   <p className="font-bold text-[var(--text)]">{item.name}</p>
                   <p className="text-[11px] text-[var(--text-muted)]">₹{Math.round(item.priceMinor / 100)}</p>
@@ -1070,7 +1231,7 @@ export default function AdminPage() {
                       prev.map((i) => (i.id === item.id ? { ...i, effectiveAvailable: res.isAvailable } : i))
                     );
                   }}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition-colors cursor-pointer min-h-[44px] ${
                     item.effectiveAvailable
                       ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                       : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
@@ -1093,7 +1254,7 @@ export default function AdminPage() {
             Permanent QR table tokens are signed cryptographically. Rotate token if table stickers are compromised.
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {tables.map((table) => (
               <div key={table.id} className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2">
                 <div className="flex items-center justify-between">
@@ -1103,11 +1264,11 @@ export default function AdminPage() {
                 <p className="text-[10px] text-[var(--text-muted)] font-mono truncate">
                   {table.token}
                 </p>
-                <div className="pt-1 flex gap-1.5">
+                <div className="pt-1 flex gap-2">
                   <Link
                     href={`/t/${table.token}`}
                     target="_blank"
-                    className="flex-1 text-center py-1 rounded-lg bg-[var(--bg-inset)] border border-[var(--border)] text-[11px] font-bold text-[var(--brand-primary)] hover:underline"
+                    className="flex-1 text-center py-2.5 rounded-xl bg-[var(--bg-inset)] border border-[var(--border)] text-xs font-bold text-[var(--brand-primary)] hover:underline min-h-[44px] flex items-center justify-center cursor-pointer"
                   >
                     Open Link →
                   </Link>
@@ -1116,10 +1277,10 @@ export default function AdminPage() {
                     size="sm"
                     onClick={() => handleRotateToken(table.id)}
                     disabled={rotatingTableId === table.id}
-                    className="px-2 h-7"
+                    className="px-3 min-w-[44px] min-h-[44px] rounded-xl cursor-pointer"
                     title="Rotate QR Token"
                   >
-                    <RotateCw className={`w-3 h-3 ${rotatingTableId === table.id ? "animate-spin" : ""}`} />
+                    <RotateCw className={`w-3.5 h-3.5 ${rotatingTableId === table.id ? "animate-spin" : ""}`} />
                   </Button>
                 </div>
               </div>
@@ -1140,7 +1301,7 @@ export default function AdminPage() {
                 variant={reportTimeframe === tf ? "primary" : "outline"}
                 size="sm"
                 onClick={() => setReportTimeframe(tf)}
-                className="flex-1 capitalize text-xs"
+                className="flex-1 capitalize text-xs min-h-[44px] font-bold cursor-pointer"
               >
                 {tf}
               </Button>
@@ -1149,19 +1310,19 @@ export default function AdminPage() {
 
           <div className="grid grid-cols-3 gap-2">
             <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
-              <p className="text-[10px] text-[var(--text-muted)]">Net Sales</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium">Net Sales</p>
               <p className="text-base font-extrabold text-[var(--brand-primary)] mt-0.5">
                 ₹{Math.round(salesReport.grossSalesMinor / 100)}
               </p>
             </div>
             <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
-              <p className="text-[10px] text-[var(--text-muted)]">Orders</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium">Orders</p>
               <p className="text-base font-extrabold text-[var(--text)] mt-0.5">
                 {salesReport.totalOrdersCount}
               </p>
             </div>
             <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
-              <p className="text-[10px] text-[var(--text-muted)]">Avg Order</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium">Avg Order</p>
               <p className="text-base font-extrabold text-[var(--text)] mt-0.5">
                 ₹{Math.round(salesReport.averageOrderValueMinor / 100)}
               </p>
@@ -1187,7 +1348,7 @@ export default function AdminPage() {
                   const updated = await updateCafeSettings({ isOpen: !cafeSettings.isOpen });
                   setCafeSettings((prev) => ({ ...prev, isOpen: updated.isOpen }));
                 }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold transition-colors cursor-pointer min-h-[44px] ${
                   cafeSettings.isOpen
                     ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                     : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
@@ -1208,7 +1369,7 @@ export default function AdminPage() {
                   const updated = await updateCafeSettings({ deliveryEnabled: !cafeSettings.deliveryEnabled });
                   setCafeSettings((prev) => ({ ...prev, deliveryEnabled: updated.deliveryEnabled }));
                 }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold transition-colors cursor-pointer min-h-[44px] ${
                   cafeSettings.deliveryEnabled
                     ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                     : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
@@ -1225,16 +1386,16 @@ export default function AdminPage() {
       {/* REAL-TIME NEW ORDER MODAL ALERT (Screen Pop-up)          */}
       {/* ======================================================== */}
       {newOrderAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[var(--bg-raised)] border-2 border-[var(--brand-primary)] rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-sm sm:max-w-md bg-[var(--bg-raised)] border-2 border-[var(--brand-primary)] rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 animate-in zoom-in-95 duration-200">
             {/* Pop-up Header */}
-            <div className="flex items-start justify-between pb-3 border-b border-[var(--border)]">
+            <div className="flex items-start justify-between pb-2.5 border-b border-[var(--border)]">
               <div className="flex items-center gap-2.5">
                 <span className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black animate-pulse">
                   <Bell className="w-5 h-5" />
                 </span>
                 <div>
-                  <h2 className="text-base font-extrabold text-[var(--text)]">
+                  <h2 className="text-base font-extrabold text-[var(--text)] font-display">
                     🚨 NEW ORDER RECEIVED!
                   </h2>
                   <p className="text-xs text-[var(--brand-primary)] font-bold">
@@ -1246,7 +1407,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => setNewOrderAlert(null)}
-                className="w-8 h-8 rounded-full bg-[var(--bg-inset)] text-[var(--text-muted)] hover:text-[var(--text)] flex items-center justify-center cursor-pointer text-sm font-bold"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-[var(--bg-inset)] text-[var(--text-muted)] hover:text-[var(--text)] flex items-center justify-center cursor-pointer text-base font-bold"
               >
                 ✕
               </button>
@@ -1269,7 +1430,7 @@ export default function AdminPage() {
               <div className="pt-2 border-t border-[var(--border)]/70 flex flex-wrap items-center justify-between gap-2">
                 <a
                   href={`tel:${newOrderAlert.contactPhone}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/25"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/25 min-h-[44px]"
                 >
                   <PhoneCall className="w-3.5 h-3.5" />
                   <span>{newOrderAlert.contactPhone}</span>
@@ -1281,7 +1442,7 @@ export default function AdminPage() {
                       href={(newOrderAlert.deliveryAddressSnapshot as { googleMapsUrl?: string }).googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 min-h-[44px]"
                     >
                       <MapPin className="w-3.5 h-3.5" />
                       <span>🗺️ Open in Google Maps</span>
@@ -1319,7 +1480,7 @@ export default function AdminPage() {
                 variant="outline"
                 size="md"
                 onClick={() => setNewOrderAlert(null)}
-                className="flex-1 text-xs"
+                className="flex-1 text-xs font-bold min-h-[44px] cursor-pointer"
               >
                 Review in KDS
               </Button>
@@ -1327,7 +1488,7 @@ export default function AdminPage() {
                 variant="primary"
                 size="md"
                 onClick={() => handleTransition(newOrderAlert.id, "preparing")}
-                className="flex-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+                className="flex-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 min-h-[48px] cursor-pointer"
               >
                 <Check className="w-4 h-4 mr-1" />
                 Approve & Cook
@@ -1335,6 +1496,15 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tax Invoice & Billing Modal */}
+      {billOrder && (
+        <BillModal
+          order={billOrder}
+          isOpen={Boolean(billOrder)}
+          onClose={() => setBillOrder(null)}
+        />
       )}
     </div>
   );

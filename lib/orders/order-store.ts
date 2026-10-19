@@ -30,6 +30,8 @@ export interface OrderRecord {
   taxMinor: number;
   totalMinor: number;
   couponCode?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
   idempotencyKey: string;
   items: OrderItemSnapshot[];
   placedAt: string;

@@ -3,6 +3,7 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { requireStaffAuth, getAuthSession, getStaffRole } from "@/lib/auth/server";
+import { checkAdminGateUnlocked } from "@/lib/auth/admin-gate";
 import {
   STAFF_STORE,
   getAllStaffMembers,
@@ -177,3 +178,33 @@ export async function getCurrentStaffStatus() {
     role: role || null,
   };
 }
+
+export async function claimAdminRoleForCurrentUser(): Promise<{
+  success: boolean;
+  role: StaffRole;
+}> {
+  const isUnlocked = await checkAdminGateUnlocked();
+  if (!isUnlocked) {
+    throw new Error("UNAUTHORIZED: Admin entrance gate passkey session is required.");
+  }
+
+  const session = await getAuthSession();
+  if (!session || !session.userId) {
+    throw new Error("UNAUTHORIZED: You must be logged into Clerk to activate an admin account.");
+  }
+
+  // Register or elevate the current user in the staff directory
+  const registered = addStaffMemberRecord({
+    name: session.name || "Cafe Administrator",
+    phone: session.phone || "+919876543299",
+    email: session.email || undefined,
+    role: "admin",
+  });
+  registered.clerkUserId = session.userId;
+
+  return {
+    success: true,
+    role: "admin",
+  };
+}
+

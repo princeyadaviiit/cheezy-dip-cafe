@@ -49,9 +49,9 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - **Framework**: Next.js 16.4.2 (App Router with Turbopack, `proxy.ts` proxy)
 - **Language**: TypeScript 5.8 (strict mode)
 - **Styling**: Tailwind CSS v4 with CSS variables
-- **Auth**: Clerk Phone Number + OTP (`@clerk/nextjs` 7.9.17)
+- **Auth**: Clerk Free Tier (`@clerk/nextjs` 7.9.17) + 30-day HMAC-SHA256 Master Gate Passkey
 - **Database**: Supabase PostgreSQL (`@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7)
-- **Test Runner**: Vitest 5.0.5 (65 tests passing across 12 suites)
+- **Test Runner**: Vitest 5.0.5 (74 tests passing across 14 suites)
 - **E2E Runner**: Playwright 1.58.2
 - **Linter**: ESLint 9.39.5 (0 errors, 0 warnings)
 
@@ -59,7 +59,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 
 | 2026-10-19 | `npm run lint` | Pass: 0 errors, 0 warnings (React Compiler purity verified) |
 | 2026-10-19 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-19 | `npm test` | Pass: 13 test files, 68 tests passed (0 failed) |
+| 2026-10-19 | `npm test` | Pass: 14 test files, 74 tests passed (0 failed) |
 | 2026-10-19 | `npm run build` | Pass: 20 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
@@ -81,6 +81,12 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-19 | Mobile-First Admin Layout, Multi-Stage Auth Gatekeeper & Tax Invoice Billing:
+  1. Multi-Stage Admin Authentication Gatekeeper: Master passkey challenge (`ADMIN_GATE_PASSKEY`) unlocks gate for 30 days via signed HMAC cookie (`cd_admin_gate`) without directly signing into operations. Once unlocked, official Clerk sign-in appears. Authenticated Clerk users who are not yet admins can claim admin privileges with one click via `claimAdminRoleForCurrentUser()`.
+  2. Mobile-First Admin & KDS (360px): Optimized entire Admin portal to `max-w-md mx-auto w-full px-3 py-3` with strictly compliant touch targets (`min-h-[44px]`) across all action buttons, links, tabs, KDS sub-filters, item sold-out toggles, and pop-up modal triggers.
+  3. Clean Production Environment: Updated `.env.example` with `ADMIN_GATE_PASSKEY=` and `ADMIN_GATE_SECRET=` without secrets or example values. Removed placeholder example "(e.g. cheezy2026)" from the admin UI.
+  4. Full GST Billing & Tax Invoice Modal (`components/billing/bill-modal.tsx`): Built responsive, printable/downloadable GST-compliant Tax Invoice modal showing cafe FSSAI (`22224074000123`), GSTIN (`08AABCC1234D1Z5`), itemized rate & modifiers, CGST/SGST 5% tax breakdown, delivery fee, discounts, and payment status badge. Embedded in customer live tracking (`/order/orders/[id]`) and admin KDS/Order cards.
+  5. Test Suite & Multi-Agent Audit: Added 6 unit tests (`tests/unit/admin-gate.test.ts`) and mobile Playwright tests (`tests/e2e/mobile-flows.spec.ts`). Multi-agent audit confirmed 100% compliance. 14 test suites and 74 unit tests passing. Turbo build 20/20 routes passing. | app/(staff)/admin/, components/billing/, lib/auth/admin-gate.ts, services/admin-service.ts, .env.example, tests/ | Production Polish
 - 2026-10-19 | Final Production Architecture & Subdomain KDS Unification:
   1. Standard Clerk Free Tier Auth: Scaffolding official Clerk `<SignIn />` and `<SignUp />` components at `/sign-in` and `/sign-up`, eliminating paid Clerk Pro SMS requirement while supporting email/password and OAuth.
   2. Customer Space Hardening: Removed all staff portal links and dev switchers from CustomerHeader, public footer, and Customer Account page. Customer space is 100% customer-facing.
