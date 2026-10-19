@@ -1,8 +1,8 @@
 # MEMORY.md (Cheezy dip cafe)
-Last updated: 2026-10-19 23:31 IST by Lead AI Engineer (Antigravity)
+Last updated: 2026-10-20 00:10 IST by Lead AI Engineer (Antigravity)
 
 ## 1. Project snapshot
-Cheezy dip cafe is a mobile-first single-cafe ordering web application. All client requirements (direct admin passkey access, customer dine-in restriction via table QR codes, printable table QR sheets, Telegram Bot realtime notifications and controls with chat ID allowlist, clean itemized billing without tax/GST/FSSAI, Razorpay payments, and clean production setup docs) are fully delivered, verified, and pushed to `origin/main` at commit `1af3193`. Git tree is 100% clean and push protection issues are fully resolved.
+Cheezy dip cafe is a mobile-first single-cafe ordering web application. All client requirements (frictionless table QR scanning with direct dine-in ordering without login, high-visibility table number alerts in the Admin panel and Telegram bot, direct admin passkey access, printable table QR sheets, clean itemized billing without tax/GST/FSSAI, Razorpay payments, and clean production setup docs) are fully delivered, verified, and passing in CI/CD suites.
 
 ## 2. Phase tracker
 
@@ -51,17 +51,17 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - **Styling**: Tailwind CSS v4 with CSS variables
 - **Auth**: Clerk Free Tier (`@clerk/nextjs` 7.9.17) + 30-day HMAC-SHA256 Master Gate Passkey
 - **Database**: Supabase PostgreSQL (`@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7)
-- **Test Runner**: Vitest 5.0.5 (86 tests passing across 15 suites)
-- **E2E Runner**: Playwright 1.58.2 (12 tests passing across mobile-360 & mobile-390)
+- **Test Runner**: Vitest 5.0.5 (87 tests passing across 15 suites)
+- **E2E Runner**: Playwright 1.58.2 (14 tests passing across mobile-360 & mobile-390)
 - **Linter**: ESLint 9.39.5 (0 errors, 0 warnings)
 
 ## 6. Commands run and results
 
-| 2026-10-19 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
-| 2026-10-19 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-19 | `npm test` | Pass: 15 test files, 86 tests passed (0 failed) in 5.82s |
-| 2026-10-19 | `npx playwright test` | Pass: 12 mobile E2E tests passed (6 on mobile-360, 6 on mobile-390) |
-| 2026-10-19 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
+| 2026-10-20 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
+| 2026-10-20 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
+| 2026-10-20 | `npm test` | Pass: 15 test files, 87 tests passed (0 failed) in 11.33s |
+| 2026-10-20 | `npx playwright test` | Pass: 14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
+| 2026-10-20 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
 - [x] RLS enabled on all tables; matrix in section 3 executed and passing (`tests/unit/authorization-matrix.test.ts`)
@@ -72,6 +72,8 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Amount/currency mismatch test passing (`tests/unit/payment-service.test.ts`)
 - [x] Cron reconciliation tested (`/api/cron/reconcile-payments`)
 - [x] Table QR abuse controls tested, token rotation tested (`tests/unit/table-cookie.test.ts`)
+- [x] Frictionless Table QR scanning: QR scan directly opens menu, adds to cart, and places dine-in order without requiring login
+- [x] High-visibility Table Number badges in Admin & KDS dashboard, pop-up alerts, and Telegram bot notifications
 - [x] Admin Entrance Gatekeeper protected by master passkey (`ADMIN_GATE_PASSKEY`) and 30-day HMAC-SHA256 signed cookie
 - [x] Telegram Bot API protected with strict chat ID allowlist (`TELEGRAM_ADMIN_CHAT_ID`) rejecting unauthorized messages/callbacks
 - [x] Subdomain isolation: customer navigation strictly customer-facing; staff links eliminated from customer header/footer/account
@@ -83,6 +85,13 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-20 | Frictionless Table QR Scan & Direct Dine-In Ordering Without Login:
+  1. Login-Free Table QR Flow: Updated `proxy.ts` to include `/order(.*)` in public routes so scanning a table QR (`/t/[token]`) sets the signed `table_ctx` and `cd_table_label` cookie and redirects straight into `/order?table=Table%20X` without triggering Clerk sign-in redirection.
+  2. Guest Dine-In Order Placement (`services/order-service.ts`): Allowed dine-in orders with cryptographic table proof (`table_ctx`) to be placed immediately by guests without requiring Clerk login. Generates a guest dine-in customer ID (`guest_tbl_table_X_...`) while supporting optional guest name and phone.
+  3. Prominent Table Numbers in Admin Panel: Updated Admin & KDS dashboard (`app/(staff)/admin/page.tsx`) to render bold high-visibility Table badges (`🍽️ Table X`) in KDS card headers, Orders list view, and realtime modal pop-up alerts.
+  4. Telegram Bot Table Alerts: Telegram alert notifications prominently highlight the Table number in the title and order details (`🔔 CHEEZY DIP CAFE - NEW ORDER [Table X]`).
+  5. Persistence Across Navigation: `CartProvider` persists `tableLabel` to `localStorage` and initializes from cookies/storage so navigating across menu, cart, and checkout preserves the table number without loss.
+  6. Verification: 15 Vitest suites (87 tests) passed, 14 Playwright mobile E2E tests (mobile-360 & mobile-390) passed, ESLint 0 errors, TypeScript 0 errors, Turbopack build 21/21 routes compiled cleanly. | proxy.ts, app/, services/, tests/
 - 2026-10-19 | Admin Passkey Direct Access, Customer Dine-in Table Restriction, Table QRs & Telegram Bot:
   1. Fix Admin Panel Authentication & State Updates: Resolved unauthorized error flood by having master passkey gatekeeper grant owner role (`role: "owner"`, `userId: "admin_master_passkey"`) in `requireStaffAuth()` and `getCurrentStaffStatus()`. Master passkey unlocks dashboard directly without broken Clerk staff loops. Fixed order state machine transitions (`ready -> delivered`, `ready -> completed`) allowing smooth 1-tap state updates.
   2. Customer Dine-In Restriction: Removed manual Dine-In switcher from public customer order page (`app/(customer)/order/page.tsx`). Online visitors default to Doorstep Delivery. Dine-in activates exclusively via physical QR scan (`/t/[token]`).

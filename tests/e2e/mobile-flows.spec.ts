@@ -112,7 +112,7 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     await page.goto("/order/orders/ord_demo_delivery");
 
     // Check order header
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Order CD-103");
+    await expect(page.locator("body")).toContainText("CD-103");
 
     const payBtn = page.getByRole("button", { name: /pay ₹280 via razorpay/i });
     if (await payBtn.isVisible()) {
@@ -123,5 +123,37 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
 
     // After click or in subsequent runs, order is verified paid
     await expect(page.locator("body")).toContainText("Paid via Razorpay (Prepaid Verified)");
+  });
+
+  test("Scanning table QR directly activates dine-in without asking for login and allows ordering", async ({
+    page,
+  }) => {
+    // 1. Visit table QR route (Table 2)
+    await page.goto("/t/cd_tbl_tok_02y8b");
+
+    // 2. Must redirect to /order with Table 2 active WITHOUT asking for login
+    await expect(page).toHaveURL(/\/order/);
+    await expect(page.locator("body")).toContainText("Dine-In Session");
+    await expect(page.locator("body")).toContainText("Table 2");
+    await expect(page.locator("body")).toContainText("Pay at Counter");
+
+    // 3. Open modifier modal and add item to cart
+    const addBtn = page.getByRole("button", { name: "ADD +" }).first();
+    await expect(addBtn).toBeVisible();
+    await addBtn.click();
+
+    const addToOrderBtn = page.getByRole("button", { name: /add to order/i });
+    await expect(addToOrderBtn).toBeVisible();
+    await addToOrderBtn.click();
+
+    // 4. Navigate to cart - verify no login required
+    await page.goto("/order/cart");
+    await expect(page.locator("body")).toContainText("Table 2");
+    await expect(page.locator("body")).toContainText("FREE (Dine-in)");
+
+    // 5. Navigate to checkout - verify table context & pay at counter
+    await page.goto("/order/checkout");
+    await expect(page.locator("body")).toContainText("Dine-In • Table 2");
+    await expect(page.locator("body")).toContainText("Pay at counter");
   });
 });

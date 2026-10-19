@@ -121,18 +121,22 @@ export function formatTelegramOrderMessage(order: OrderRecord): string {
 
   const statusLabel = statusEmoji[order.orderStatus] || order.orderStatus.toUpperCase();
 
-  let details = `🔔 <b>CHEEZY DIP CAFE - NEW ORDER</b>\n\n`;
+  let details = `🔔 <b>CHEEZY DIP CAFE - NEW ORDER [${order.tableLabel || "DINE-IN"}]</b>\n\n`;
   details += `📋 <b>Order:</b> #${order.orderNumber}\n`;
   details += `📊 <b>Status:</b> ${statusLabel}\n`;
   details += `🍴 <b>Channel:</b> ${
     order.orderType === "dine_in"
-      ? `🍽️ Dine-In (${order.tableLabel || "Table"})`
+      ? `🍽️ <b>DINE-IN • ${order.tableLabel || "Table"}</b>`
       : "🛵 Home Delivery"
   }\n`;
   details += `💰 <b>Total:</b> ₹${Math.round(order.totalMinor / 100)} (${
     order.paymentStatus === "paid" ? "✅ Paid" : "⏳ Pay at Counter"
   })\n`;
-  details += `📞 <b>Phone:</b> ${order.contactPhone || deliverySnap?.phone || "N/A"}\n`;
+  details += `📞 <b>Phone:</b> ${order.contactPhone || deliverySnap?.phone || "Dine-in Guest"}\n`;
+
+  if (order.orderType === "dine_in" && deliverySnap?.recipientName) {
+    details += `👤 <b>Guest Name:</b> ${escapeHtml(deliverySnap.recipientName)}\n`;
+  }
 
   if (order.orderType === "delivery" && deliverySnap) {
     details += `👤 <b>Customer:</b> ${escapeHtml(deliverySnap.recipientName || "Customer")}\n`;

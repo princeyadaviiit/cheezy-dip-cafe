@@ -719,11 +719,16 @@ export default function AdminPage() {
                     {/* Header: Number, Elapsed Time, Type Badge */}
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base font-extrabold text-[var(--text)]">
                             {order.orderNumber}
                           </h3>
                           <StatusBadge status={order.orderStatus} />
+                          {order.orderType === "dine_in" && (
+                            <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40 text-xs font-black tracking-wide flex items-center gap-1 shadow-2xs">
+                              🍽️ {order.tableLabel || "Table"}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mt-0.5">
                           <Clock className="w-3.5 h-3.5" />
@@ -731,8 +736,8 @@ export default function AdminPage() {
                           <span>•</span>
                           <span className="font-semibold text-[var(--text)]">
                             {order.orderType === "dine_in"
-                              ? `Dine-In (${order.tableLabel || "Table"})`
-                              : "Delivery"}
+                              ? `Dine-In • ${order.tableLabel || "Table"}`
+                              : "Doorstep Delivery"}
                           </span>
                         </div>
                       </div>
@@ -957,11 +962,16 @@ export default function AdminPage() {
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-extrabold text-sm text-[var(--text)]">
                           {order.orderNumber}
                         </span>
                         <StatusBadge status={order.orderStatus} />
+                        {order.orderType === "dine_in" && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40 text-[11px] font-black">
+                            🍽️ {order.tableLabel || "Table"}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                         {order.orderType === "dine_in"
@@ -1328,12 +1338,14 @@ export default function AdminPage() {
             {/* Type & Table / Location Breakdown */}
             <div className="p-3 bg-[var(--bg-inset)] rounded-2xl border border-[var(--border)] space-y-2 text-xs">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-[var(--text)]">
-                  {newOrderAlert.orderType === "dine_in"
-                    ? `🍽️ Dine-In • ${newOrderAlert.tableLabel || "Table"}`
-                    : "🛵 Home Delivery"}
-                </span>
-                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                {newOrderAlert.orderType === "dine_in" ? (
+                  <span className="px-3 py-1 rounded-xl bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40 font-black text-sm flex items-center gap-1.5 shadow-2xs">
+                    🍽️ SEATED AT {newOrderAlert.tableLabel?.toUpperCase() || "TABLE"}
+                  </span>
+                ) : (
+                  <span className="font-bold text-[var(--text)]">🛵 Home Delivery</span>
+                )}
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
                   ₹{Math.round(newOrderAlert.totalMinor / 100)}
                 </span>
               </div>

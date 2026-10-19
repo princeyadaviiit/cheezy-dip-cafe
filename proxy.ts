@@ -14,7 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/contact(.*)",
   "/dev/(.*)",
   "/admin(.*)",
-  "/order/orders/(.*)",
+  "/order(.*)",
   "/api/webhooks(.*)",
   "/api/cron(.*)",
 ]);

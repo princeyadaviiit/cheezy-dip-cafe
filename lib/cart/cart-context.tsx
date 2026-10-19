@@ -36,6 +36,13 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const CART_STORAGE_KEY = "cheezy_dip_cart_v1";
 const ORDER_TYPE_KEY = "cheezy_dip_order_type_v1";
+const TABLE_LABEL_KEY = "cheezy_dip_table_label_v1";
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
 
 function generateCartItemId(itemId: string, options: string[] = []): string {
   const sortedOpts = [...options].sort().join("|");
@@ -53,24 +60,49 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   });
 
+  const [tableLabel, setTableLabelState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem(TABLE_LABEL_KEY);
+      if (stored) return stored;
+      const cookieVal = getCookie("cd_table_label");
+      if (cookieVal) return cookieVal;
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
   const [orderType, setOrderTypeState] = useState<"dine_in" | "delivery">(() => {
     if (typeof window === "undefined") return "delivery";
     try {
+      const storedTable = localStorage.getItem(TABLE_LABEL_KEY) || getCookie("cd_table_label");
+      if (storedTable) return "dine_in";
       const stored = localStorage.getItem(ORDER_TYPE_KEY);
-      return stored === "delivery" ? "delivery" : "delivery"; // Always default to delivery unless table QR scanned
+      return stored === "dine_in" ? "dine_in" : "delivery";
     } catch {
       return "delivery";
     }
   });
 
-  const [tableLabel, setTableLabelState] = useState<string | null>(null);
-
   const setTableLabel = (label: string | null) => {
     setTableLabelState(label);
     if (label) {
       setOrderTypeState("dine_in");
+      try {
+        localStorage.setItem(TABLE_LABEL_KEY, label);
+        localStorage.setItem(ORDER_TYPE_KEY, "dine_in");
+      } catch {
+        // Ignore storage errors
+      }
     } else {
       setOrderTypeState("delivery");
+      try {
+        localStorage.removeItem(TABLE_LABEL_KEY);
+        localStorage.setItem(ORDER_TYPE_KEY, "delivery");
+      } catch {
+        // Ignore storage errors
+      }
     }
   };
 
@@ -79,10 +111,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
       localStorage.setItem(ORDER_TYPE_KEY, orderType);
+      if (tableLabel) {
+        localStorage.setItem(TABLE_LABEL_KEY, tableLabel);
+      }
     } catch {
       // Ignore storage errors
     }
-  }, [items, orderType]);
+  }, [items, orderType, tableLabel]);
 
   const addItem = (
     item: MenuItem,

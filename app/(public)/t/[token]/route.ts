@@ -47,5 +47,16 @@ export async function GET(
     maxAge: 6 * 60 * 60,
   });
 
+  // Also set client-readable table label cookie for persistent client UI state
+  response.cookies.set({
+    name: "cd_table_label",
+    value: table.label,
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 6 * 60 * 60,
+  });
+
   return response;
 }

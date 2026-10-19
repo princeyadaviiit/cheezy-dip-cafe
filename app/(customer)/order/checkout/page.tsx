@@ -20,6 +20,8 @@ export default function CheckoutPage() {
   } = useCart();
 
   const [customerNote, setCustomerNote] = useState("");
+  const [dinerName, setDinerName] = useState("");
+  const [dinerPhone, setDinerPhone] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
   const [addressLine, setAddressLine] = useState("");
@@ -72,7 +74,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const isDineIn = orderType === "dine_in" && Boolean(tableLabel);
+  const isDineIn = orderType === "dine_in" || Boolean(tableLabel);
   const deliveryFeeMinor = isDineIn ? 0 : 3000;
   const grandTotalMinor = subtotalMinor + deliveryFeeMinor;
 
@@ -101,6 +103,8 @@ export default function CheckoutPage() {
         orderType: effectiveOrderType,
         items: orderItems,
         customerNote: customerNote.trim() || undefined,
+        customerName: effectiveOrderType === "dine_in" ? (dinerName.trim() || undefined) : (recipientName.trim() || undefined),
+        customerPhone: effectiveOrderType === "dine_in" ? (dinerPhone.trim() || undefined) : (phone.trim() || undefined),
         paymentMethod: (effectiveOrderType === "dine_in" ? "pay_at_counter" : "razorpay") as
           | "pay_at_counter"
           | "razorpay",
@@ -196,6 +200,27 @@ export default function CheckoutPage() {
             <p className="text-[11px] text-[var(--text-muted)]">
               Enjoy your food first. Pay with Cash or UPI at the front counter after your meal.
             </p>
+          </div>
+
+          {/* Optional Diner Contact Info */}
+          <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+            <p className="text-xs font-semibold text-[var(--text)]">Your Details (Optional)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                placeholder="Your Name (Optional)"
+                value={dinerName}
+                onChange={(e) => setDinerName(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+              />
+              <input
+                type="tel"
+                placeholder="Mobile Number (Optional)"
+                value={dinerPhone}
+                onChange={(e) => setDinerPhone(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+              />
+            </div>
           </div>
         </div>
       ) : (

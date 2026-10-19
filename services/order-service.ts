@@ -17,20 +17,10 @@ export type { PlaceOrderInput };
 import { sendTelegramOrderAlert } from "@/services/telegram-service";
 
 export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord> {
-  const user = await requireCustomerAuth();
   const input = PlaceOrderSchema.parse(rawInput);
+  const session = await getAuthSession();
 
-  // 1. Check idempotency deduplication
-  const idempotencyKeyCompound = `${user.userId}:${input.idempotencyKey}`;
-  const existingOrderId = IDEMPOTENCY_STORE.get(idempotencyKeyCompound);
-  if (existingOrderId) {
-    const existingOrder = ORDERS_STORE.get(existingOrderId);
-    if (existingOrder) {
-      return existingOrder;
-    }
-  }
-
-  // 2. Resolve Table Context for Dine-In (Table ID is NEVER from request body)
+  // 1. Resolve Table Context for Dine-In (Table ID is NEVER from request body)
   let tableId: string | undefined;
   let tableLabel: string | undefined;
 
@@ -58,30 +48,57 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
     }
   }
 
-  // 3. Re-calculate Pricing via Server Pricing Engine (never trust client calculations)
+  // 2. Resolve Customer Identity (Logged-in user or Guest Diner)
+  const customerClerkId =
+    session?.userId ||
+    (input.orderType === "dine_in"
+      ? `guest_tbl_${(tableLabel || "table").toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now().toString(36)}`
+      : `guest_del_${Date.now().toString(36)}`);
+
+  const contactPhone =
+    input.customerPhone ||
+    input.deliveryAddressSnapshot?.phone ||
+    session?.phone ||
+    "Dine-in Guest";
+
+  // 3. Check idempotency deduplication
+  const idempotencyKeyCompound = `${customerClerkId}:${input.idempotencyKey}`;
+  const existingOrderId = IDEMPOTENCY_STORE.get(idempotencyKeyCompound);
+  if (existingOrderId) {
+    const existingOrder = ORDERS_STORE.get(existingOrderId);
+    if (existingOrder) {
+      return existingOrder;
+    }
+  }
+
+  // 4. Re-calculate Pricing via Server Pricing Engine (never trust client calculations)
   const pricing = calculateOrderPricing({
     items: input.items,
     orderType: input.orderType,
     deliveryFeeMinor: input.orderType === "delivery" ? 3000 : 0,
   });
 
-  // 4. Generate Order Record
+  // 5. Generate Order Record
   const orderNumber = getNextOrderNumber();
   const orderId = `ord_${Math.random().toString(36).substring(2, 10)}`;
   const now = new Date().toISOString();
 
+  const deliverySnapshot =
+    input.deliveryAddressSnapshot ||
+    (input.customerName ? { recipientName: input.customerName } : undefined);
+
   const orderRecord: OrderRecord = {
     id: orderId,
     orderNumber,
-    customerClerkId: user.userId,
-    contactPhone: input.deliveryAddressSnapshot?.phone || user.phone || "+919876543210",
+    customerClerkId,
+    contactPhone,
     orderType: input.orderType,
     orderStatus: input.orderType === "delivery" ? "pending_payment" : "placed",
     paymentMethod: input.paymentMethod,
     paymentStatus: "pending",
     tableId,
     tableLabel,
-    deliveryAddressSnapshot: input.deliveryAddressSnapshot,
+    deliveryAddressSnapshot: deliverySnapshot,
     customerNote: input.customerNote,
     subtotalMinor: pricing.subtotalMinor,
     discountMinor: pricing.discountMinor,
@@ -113,24 +130,21 @@ export async function getOrderById(orderId: string): Promise<OrderRecord | null>
   const order = ORDERS_STORE.get(orderId);
   if (!order) return null;
 
-  // Authorization: Customer sees only their own order; staff sees all
-  if (session) {
-    if (order.customerClerkId === session.userId || session.role) {
-      return order;
-    }
-  }
-
-  // Allow direct order tracking via link in non-production environments
-  if (process.env.NODE_ENV !== "production" || !session) {
+  // 1. Staff can view all orders
+  if (session?.role) {
     return order;
   }
 
-  return null;
+  // 2. Customer tracking their order via direct unique order URL or session
+  return order;
 }
 
 export async function getCustomerOrders(): Promise<OrderRecord[]> {
-  const user = await requireCustomerAuth();
+  const session = await getAuthSession();
+  if (!session?.userId) {
+    return [];
+  }
   return Array.from(ORDERS_STORE.values()).filter(
-    (order) => order.customerClerkId === user.userId
+    (order) => order.customerClerkId === session.userId
   );
 }

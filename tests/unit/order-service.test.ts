@@ -115,4 +115,36 @@ describe("Order Service (placeOrder validation & security)", () => {
     expect(order1.id).toBe(order2.id);
     expect(order1.orderNumber).toBe(order2.orderNumber);
   });
+
+  it("places a guest dine-in order successfully without requiring customer login when signed table cookie is present", async () => {
+    // Simulate unauthenticated guest (getAuthSession returns null)
+    const { getAuthSession } = await import("@/lib/auth/server");
+    vi.mocked(getAuthSession).mockResolvedValueOnce(null);
+
+    mockGetTableContext.mockResolvedValue({
+      tableId: "d0000000-0000-0000-0000-000000000003",
+      tableLabel: "Table 3",
+      issuedAt: Date.now(),
+    });
+
+    const order = await placeOrder({
+      orderType: "dine_in",
+      paymentMethod: "pay_at_counter",
+      idempotencyKey: "idem_guest_diner_no_login_001",
+      customerName: "Rahul",
+      customerPhone: "+919876543210",
+      items: [{ menuItemId: "fries-cheese-loaded", quantity: 1 }],
+      customerNote: "Make it extra cheesy",
+    });
+
+    expect(order.orderNumber).toMatch(/^CD-\d+$/);
+    expect(order.orderType).toBe("dine_in");
+    expect(order.tableLabel).toBe("Table 3");
+    expect(order.customerClerkId).toMatch(/^guest_tbl_table_3_/);
+    expect(order.contactPhone).toBe("+919876543210");
+    expect(order.deliveryAddressSnapshot).toEqual({ recipientName: "Rahul" });
+    expect(order.orderStatus).toBe("placed");
+    expect(order.paymentStatus).toBe("pending");
+    expect(order.paymentMethod).toBe("pay_at_counter");
+  });
 });

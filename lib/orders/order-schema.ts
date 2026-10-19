@@ -18,6 +18,8 @@ export const PlaceOrderSchema = z.object({
     .min(1, "Order must contain at least one item"),
   couponCode: z.string().max(20).optional(),
   addressId: z.string().uuid().optional(),
+  customerName: z.string().max(100).optional(),
+  customerPhone: z.string().max(20).optional(),
   deliveryAddressSnapshot: z
     .object({
       recipientName: z.string().min(1),
