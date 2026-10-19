@@ -73,7 +73,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
     id: orderId,
     orderNumber,
     customerClerkId: user.userId,
-    contactPhone: user.phone || "+919876543210",
+    contactPhone: input.deliveryAddressSnapshot?.phone || user.phone || "+919876543210",
     orderType: input.orderType,
     orderStatus: input.orderType === "delivery" ? "pending_payment" : "placed",
     paymentMethod: input.paymentMethod,

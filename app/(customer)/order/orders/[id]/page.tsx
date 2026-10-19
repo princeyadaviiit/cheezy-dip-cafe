@@ -14,11 +14,19 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 
 const DINE_IN_STEPS = [
-  { status: "placed", label: "Order Placed", desc: "Received by kitchen" },
+  { status: "placed", label: "Placed", desc: "Received by kitchen" },
   { status: "accepted", label: "Accepted", desc: "Order confirmed" },
   { status: "preparing", label: "Cooking", desc: "Melting in the kitchen" },
   { status: "ready", label: "Ready", desc: "Plated for service" },
   { status: "served", label: "Served", desc: "Enjoy your meal!" },
+];
+
+const DELIVERY_STEPS = [
+  { status: "placed", label: "Placed", desc: "Received by cafe" },
+  { status: "accepted", label: "Accepted", desc: "Order confirmed" },
+  { status: "preparing", label: "Cooking", desc: "Prepared fresh" },
+  { status: "out_for_delivery", label: "On Way", desc: "Rider dispatched" },
+  { status: "delivered", label: "Delivered", desc: "Delivered to you" },
 ];
 
 export default function OrderTrackingPage({
@@ -95,7 +103,21 @@ export default function OrderTrackingPage({
   }
 
   // Calculate current step index for visual stepper
-  const currentStepIdx = DINE_IN_STEPS.findIndex((s) => s.status === order.orderStatus);
+  const activeSteps = order.orderType === "delivery" ? DELIVERY_STEPS : DINE_IN_STEPS;
+  const currentStepIdx = activeSteps.findIndex((s) => s.status === order.orderStatus);
+
+  const deliverySnap = order.deliveryAddressSnapshot as
+    | {
+        recipientName?: string;
+        phone?: string;
+        line1?: string;
+        area?: string;
+        pincode?: string;
+        googleMapsUrl?: string;
+        latitude?: number;
+        longitude?: number;
+      }
+    | undefined;
 
   return (
     <div className="space-y-4 pb-12">
@@ -162,10 +184,38 @@ export default function OrderTrackingPage({
           </div>
         )}
 
+        {/* Delivery Address Banner */}
+        {order.orderType === "delivery" && deliverySnap && (
+          <div className="p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)] space-y-1.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[var(--text)]">Delivery Destination</span>
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                Prepaid
+              </span>
+            </div>
+            <p className="text-[var(--text)] text-xs">
+              {deliverySnap.recipientName} • {deliverySnap.phone}
+            </p>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {deliverySnap.line1}, {deliverySnap.area} - {deliverySnap.pincode}
+            </p>
+            {deliverySnap.googleMapsUrl && (
+              <a
+                href={deliverySnap.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-[var(--brand-primary)] font-semibold hover:underline pt-0.5"
+              >
+                📍 View Pinned GPS Location on Google Maps →
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Live Stepper */}
         <div className="pt-2">
           <div className="relative flex justify-between">
-            {DINE_IN_STEPS.map((step, idx) => {
+            {activeSteps.map((step, idx) => {
               const isDone = currentStepIdx >= idx;
               const isCurrent = currentStepIdx === idx;
 

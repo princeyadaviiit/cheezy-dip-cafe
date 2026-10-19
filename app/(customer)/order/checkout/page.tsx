@@ -25,8 +25,41 @@ export default function CheckoutPage() {
   const [addressLine, setAddressLine] = useState("");
   const [area, setArea] = useState("");
   const [pincode, setPincode] = useState("302001");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setErrorMessage("Geolocation is not supported by your browser/device.");
+      return;
+    }
+    setIsLocating(true);
+    setErrorMessage(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setCoords({ lat, lng });
+        setLocationSuccess(`Location pinned (±${Math.round(position.coords.accuracy)}m accuracy)`);
+        setIsLocating(false);
+        if (!addressLine) {
+          setAddressLine(`GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        setErrorMessage(
+          error.code === 1
+            ? "Location permission was denied. Please allow location access or type your address manually."
+            : "Could not fetch GPS location. Please type your address manually."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   if (items.length === 0) {
     return (
@@ -57,6 +90,10 @@ export default function CheckoutPage() {
         note: i.note,
       }));
 
+      const googleMapsUrl = coords
+        ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
+        : undefined;
+
       const payload = {
         orderType,
         items: orderItems,
@@ -72,6 +109,9 @@ export default function CheckoutPage() {
                 line1: addressLine.trim() || "Main Street",
                 area: area.trim() || "Cafe Vicinity",
                 pincode: pincode.trim() || "302001",
+                latitude: coords?.lat,
+                longitude: coords?.lng,
+                googleMapsUrl,
               }
             : undefined,
         idempotencyKey,
@@ -157,25 +197,57 @@ export default function CheckoutPage() {
         </div>
       ) : (
         <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-3 shadow-xs">
-          <h3 className="text-sm font-bold text-[var(--text)]">Delivery Address</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-[var(--text)]">Delivery Details</h3>
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              Prepaid Only (No COD)
+            </span>
+          </div>
+
+          {/* GPS Location Button */}
+          <div className="p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-[var(--text)]">Live GPS Location</p>
+                <p className="text-[11px] text-[var(--text-muted)]">Pin your exact live address for faster delivery</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleGetCurrentLocation}
+                disabled={isLocating}
+                className="text-xs font-medium shrink-0 h-9 px-3 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+              >
+                {isLocating ? "Detecting..." : "📍 Use My Location"}
+              </Button>
+            </div>
+            {locationSuccess && (
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{locationSuccess}</span>
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <input
               type="text"
-              placeholder="Full Name"
+              placeholder="Recipient Full Name"
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
             />
             <input
               type="tel"
-              placeholder="Phone Number (+91)"
+              placeholder="Delivery Contact Mobile Number (+91)"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
             />
             <input
               type="text"
-              placeholder="House/Flat No., Street Name"
+              placeholder="House/Flat No., Building, Street Name"
               value={addressLine}
               onChange={(e) => setAddressLine(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
@@ -196,6 +268,10 @@ export default function CheckoutPage() {
                 className="w-full px-3 py-2 text-xs bg-[var(--bg-inset)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
               />
             </div>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-800 dark:text-amber-200">
+            <strong>Payment Notice:</strong> Cash on Delivery (COD) is not accepted. All deliveries are 100% prepaid via Razorpay.
           </div>
         </div>
       )}
@@ -244,10 +320,14 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Trust & Guarantee badge */}
-      <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] justify-center py-1">
-        <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-        <span>Freshly prepared on order • 100% Pure Vegetarian</span>
+      {/* Strict No-Cancellation Policy Banner */}
+      <div className="p-3 bg-stone-100 dark:bg-stone-900/60 border border-[var(--border)] rounded-xl text-center space-y-1">
+        <p className="text-[11px] font-bold text-[var(--text)]">
+          🛡️ Strict No-Cancellation Policy
+        </p>
+        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+          All food items are prepared fresh immediately upon approval. Once an order is confirmed, it cannot be cancelled or refunded.
+        </p>
       </div>
 
       {/* Place Order Action */}

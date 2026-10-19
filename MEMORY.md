@@ -57,12 +57,10 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 
 ## 6. Commands run and results
 
-| Date | Command | Result |
-|---|---|---|
-| 2026-10-18 | `npm run lint` | Pass: 0 errors, 0 warnings |
-| 2026-10-18 | `npm run typecheck` | Pass: 0 errors |
-| 2026-10-18 | `npm test` | Pass: 13 test files, 68 tests passed (0 failed, including theme provider & toggle unit tests) |
-| 2026-10-18 | `npm run build` | Pass: 20 static/dynamic routes built cleanly with Turbopack |
+| 2026-10-19 | `npm run lint` | Pass: 0 errors, 0 warnings (React Compiler purity verified) |
+| 2026-10-19 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
+| 2026-10-19 | `npm test` | Pass: 13 test files, 68 tests passed (0 failed) |
+| 2026-10-19 | `npm run build` | Pass: 20 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
 - [x] RLS enabled on all tables; matrix in section 3 executed and passing (`tests/unit/authorization-matrix.test.ts`)
@@ -73,6 +71,8 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Amount/currency mismatch test passing (`tests/unit/payment-service.test.ts`)
 - [x] Cron reconciliation tested (`/api/cron/reconcile-payments`)
 - [x] Table QR abuse controls tested, token rotation tested (`tests/unit/table-cookie.test.ts`)
+- [x] Admin Entrance Gatekeeper protected by master passkey (`ADMIN_GATE_PASSKEY`) and 30-day HMAC-SHA256 signed cookie
+- [x] Subdomain isolation: customer navigation strictly customer-facing; staff links eliminated from customer header/footer/account
 - [x] India-only SMS allowlist confirmed; bot protection on
 - [x] CSP and security headers verified in `next.config.ts`
 - [x] Legal pages live and linked, FSSAI/GST shown
@@ -81,6 +81,16 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - [x] Production Razorpay keys documented for handover (Phase 10 runbook)
 
 ## 8. Changelog
+- 2026-10-19 | Final Production Architecture & Subdomain KDS Unification:
+  1. Standard Clerk Free Tier Auth: Scaffolding official Clerk `<SignIn />` and `<SignUp />` components at `/sign-in` and `/sign-up`, eliminating paid Clerk Pro SMS requirement while supporting email/password and OAuth.
+  2. Customer Space Hardening: Removed all staff portal links and dev switchers from CustomerHeader, public footer, and Customer Account page. Customer space is 100% customer-facing.
+  3. Admin Subdomain & Master Passkey Gatekeeper: Configured Next.js middleware `proxy.ts` to detect `admin.` subdomain. Implemented one-time master passkey entrance (`ADMIN_GATE_PASSKEY`, default: `cheezy2026`) generating a signed 30-day HMAC `cd_admin_gate` cookie.
+  4. Unified Admin & Kitchen KDS Dashboard: Merged Kitchen KDS into the Admin Dashboard (`/admin`), with sub-status queue (`Incoming`, `In Prep`, `Ready`, `All Active`), live order elapsed timers, and single-click order approval. Redirected legacy `/kitchen` and `/staff` routes to `/admin`.
+  5. Realtime New Order Modal Alert: Implemented automatic 4-second polling with Web Audio API two-tone cafe chime and instant on-screen pop-up modal showing items, customer phone (`tel:...`), and direct Google Maps navigation button for delivery orders. Clicking "Approve & Cook" immediately updates customer live tracking to `preparing`.
+  6. Checkout GPS & Strict Policies: Added "📍 Use My Current Location" button using HTML5 Geolocation API, storing GPS coordinates and Google Maps URL. Enforced 100% Prepaid Delivery (No COD) and added prominent "Strict No-Cancellation Policy" notice.
+  7. Staff & Admin Management: Added full staff management to Admin tab with admin/kitchen count badges, new staff registration form (Name, Phone, Email, Role), and status toggling.
+  8. Documentation: Created root `README.md` and detailed `docs/setup.md` covering DNS, Vercel, Nginx reverse proxy, and local subdomain testing.
+  9. Verification: `npm run lint` (0 errors), `npm run typecheck` (0 errors), `npm test` (68/68 passed), `npm run build` (20/20 routes compiled). | app/, lib/, services/, components/, docs/setup.md, README.md | Final Build
 - 2026-10-18 | Server Action Fix, Clerk Profile & Staff Role Management: Resolved Next.js invalid-use-server-value runtime error by extracting PlaceOrderSchema to lib/orders/order-schema.ts; integrated Clerk UserButton, Show (signed-in/signed-out), and SignOutButton into CustomerHeader, Public Header, and /order/account dashboard; implemented full Staff Login & Operations Portal (/staff) with auto role detection by verified phone (+919876543210 Owner, +919876543211 Admin, +919876543212 Kitchen), quick role switcher, staff registration form in Admin, and access guards on /admin and /kitchen. Verified with lint 0 errors, tsc 0 errors, 68/68 Vitest tests, and Turbopack 21/21 routes build. | services/order-service.ts, lib/orders/order-schema.ts, lib/auth/, components/customer/, app/(staff)/, app/(customer)/order/account/ | Polish & Fix
 - 2026-10-18 | Theme System (Light Theme Default + Toggle): Scaffolding ThemeProvider with React 19 `useSyncExternalStore` and localStorage persistence, configured warm cafe light mode palette as root default with dark mode overrides in globals.css, added accessible >=44px ThemeToggle to public header, public menu, customer bar, kitchen display, and admin controls, refactored hardcoded dark classes to semantic CSS tokens, and verified 68/68 Vitest tests + 20/20 Turbopack build routes. | app/globals.css, components/theme/, app/, components/, tests/unit/theme.test.tsx | Polish
 - 2026-10-18 | Phase 9 complete: Created compliance pages (Terms, Privacy, Refund, Delivery, Contact), configured HTTP security headers & CSP in Next config, built Playwright mobile e2e test suite, scoped Vitest to unit tests, and compiled Phase 10 handover runbook at `docs/FINAL-REPORT.md`. Tagged `phase-9`. | app/(public)/, next.config.ts, tests/e2e/, docs/FINAL-REPORT.md | Phase 9
@@ -95,4 +105,5 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. It featu
 - 2026-10-18 | Phase 0 complete: Preparation & Brand Ingestion. Tagged `phase-0`. | Phase 0
 
 ## 9. Next step
-Goal complete! Hand over final deliverables to the project owner via `docs/FINAL-REPORT.md` and Phase 10 go-live execution guide.
+Production build complete and verified. Deliverables handed over to the user. All requested features active.
+

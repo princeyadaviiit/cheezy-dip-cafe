@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -17,7 +17,21 @@ import {
   RotateCw,
   ExternalLink,
   TrendingUp,
+  ChefHat,
+  Volume2,
+  VolumeX,
+  Bell,
+  MapPin,
+  Flame,
+  Lock,
+  Unlock,
+  PhoneCall,
+  Clock,
+  RefreshCw,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
+import { UserButton, Show } from "@clerk/nextjs";
 import {
   getAllAdminOrders,
   getAdminMenuCatalog,
@@ -29,17 +43,73 @@ import {
   getStaffList,
   addStaffMember,
   toggleStaffStatus,
+  getCurrentStaffStatus,
   setDevStaffRole,
 } from "@/services/admin-service";
-import { markOrderPaidAtCounter } from "@/services/kitchen-service";
+import {
+  transitionOrderStatus,
+  markOrderPaidAtCounter,
+} from "@/services/kitchen-service";
+import {
+  checkAdminGateStatus,
+  submitAdminGatePasskey,
+  lockAdminGateSession,
+} from "@/services/admin-gate-actions";
 import { getSalesReport, type SalesReportSummary } from "@/services/report-service";
 import { type OrderRecord } from "@/lib/orders/order-store";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { type OrderStatus, StatusBadge } from "@/components/ui/status-badge";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 
+// Web Audio API chime generator for incoming orders
+function playOrderAlertChime() {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    // Pleasant ascending two-tone cafe bell (880Hz -> 1320Hz)
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.15);
+
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.55);
+
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate([200, 100, 200]);
+    }
+  } catch {
+    // Audio context may require user interaction
+  }
+}
+
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"orders" | "reports" | "menu" | "tables" | "settings" | "staff">("orders");
+  // Gatekeeper state
+  const [isGateUnlocked, setIsGateUnlocked] = useState<boolean | null>(null);
+  const [gatePasskey, setGatePasskey] = useState("");
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateSubmitting, setGateSubmitting] = useState(false);
+
+  // Active navigation tab
+  const [activeTab, setActiveTab] = useState<
+    "kitchen" | "orders" | "reports" | "menu" | "tables" | "staff" | "settings"
+  >("kitchen");
+
+  // Kitchen sub-filter
+  const [kitchenFilter, setKitchenFilter] = useState<"incoming" | "cooking" | "ready" | "all">("incoming");
+
+  // Core Data
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [menuItems, setMenuItems] = useState<
     Array<{ id: string; name: string; priceMinor: number; effectiveAvailable: boolean }>
@@ -59,136 +129,164 @@ export default function AdminPage() {
     Array<{ id: string; label: string; token: string; isActive: boolean }>
   >([]);
   const [staffList, setStaffList] = useState<
-    Array<{ id: string; name: string; phone: string; role: string; isActive: boolean }>
+    Array<{ id: string; name: string; phone: string; email?: string; role: string; isActive: boolean }>
   >([]);
   const [salesReport, setSalesReport] = useState<SalesReportSummary | null>(null);
   const [reportTimeframe, setReportTimeframe] = useState<"today" | "week" | "month">("today");
 
+  // Search & interaction states
   const [searchQuery, setSearchQuery] = useState("");
   const [rotatingTableId, setRotatingTableId] = useState<string | null>(null);
-
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [currentStaff, setCurrentStaff] = useState<{
+    role: string | null;
+    phone: string | null;
+    email: string | null;
+    name: string | null;
+  }>({ role: null, phone: null, email: null, name: null });
+
+  // New order pop-up modal state
+  const [newOrderAlert, setNewOrderAlert] = useState<OrderRecord | null>(null);
+  const seenOrderIdsRef = useRef<Set<string>>(new Set());
+  const initialLoadRef = useRef(false);
+
+  // New Staff Form
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [newStaffEmail, setNewStaffEmail] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"kitchen" | "admin" | "owner">("kitchen");
   const [isAddingStaff, setIsAddingStaff] = useState(false);
   const [staffStatusMsg, setStaffStatusMsg] = useState<string | null>(null);
 
+  // Check Gatekeeper Status on mount
   useEffect(() => {
+    checkAdminGateStatus().then((unlocked) => {
+      setIsGateUnlocked(unlocked);
+    });
+  }, []);
+
+  const handleUnlockGate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gatePasskey.trim()) {
+      setGateError("Please enter the admin entrance passkey.");
+      return;
+    }
+    setGateSubmitting(true);
+    setGateError(null);
+
+    try {
+      const res = await submitAdminGatePasskey(gatePasskey);
+      if (res.success) {
+        setIsGateUnlocked(true);
+      } else {
+        setGateError(res.error || "Incorrect passkey. Please try again.");
+      }
+    } catch {
+      setGateError("Verification failed. Please try again.");
+    } finally {
+      setGateSubmitting(false);
+    }
+  };
+
+  const handleLockGate = async () => {
+    await lockAdminGateSession();
+    setIsGateUnlocked(false);
+    setGatePasskey("");
+  };
+
+  // Data fetching callback
+  const fetchData = useCallback(async () => {
+    try {
+      const [ords, menu, sett, tbls, staff, report, currentStatus] = await Promise.all([
+        getAllAdminOrders(),
+        getAdminMenuCatalog(),
+        getCafeSettings(),
+        getTablesList(),
+        getStaffList(),
+        getSalesReport(reportTimeframe),
+        getCurrentStaffStatus(),
+      ]);
+
+      setOrders(ords);
+      setMenuItems(menu);
+      setCafeSettings(sett);
+      setTables(tbls);
+      setStaffList(staff);
+      setSalesReport(report);
+      setCurrentStaff({
+        role: currentStatus.role,
+        phone: currentStatus.phone,
+        email: currentStatus.email,
+        name: currentStatus.name,
+      });
+      setAuthError(null);
+
+      // Check for newly arrived "placed" orders to trigger popup modal & chime
+      if (initialLoadRef.current) {
+        const brandNewPlaced = ords.find(
+          (o) => o.orderStatus === "placed" && !seenOrderIdsRef.current.has(o.id)
+        );
+        if (brandNewPlaced) {
+          if (soundEnabled) {
+            playOrderAlertChime();
+          }
+          setNewOrderAlert(brandNewPlaced);
+        }
+      } else {
+        initialLoadRef.current = true;
+      }
+
+      // Track all current order IDs
+      ords.forEach((o) => seenOrderIdsRef.current.add(o.id));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Access restricted";
+      if (msg.includes("FORBIDDEN") || msg.includes("UNAUTHORIZED")) {
+        setAuthError(msg);
+      }
+    }
+  }, [reportTimeframe, soundEnabled]);
+
+  // Initial and recurring poll every 4 seconds
+  useEffect(() => {
+    if (!isGateUnlocked) return;
     let active = true;
 
-    const fetchData = async () => {
-      try {
-        const [ords, menu, sett, tbls, staff, report] = await Promise.all([
-          getAllAdminOrders(),
-          getAdminMenuCatalog(),
-          getCafeSettings(),
-          getTablesList(),
-          getStaffList(),
-          getSalesReport(reportTimeframe),
-        ]);
-        if (active) {
-          setOrders(ords);
-          setMenuItems(menu);
-          setCafeSettings(sett);
-          setTables(tbls);
-          setStaffList(staff);
-          setSalesReport(report);
-          setAuthError(null);
-        }
-      } catch (err: unknown) {
-        if (active) {
-          const msg = err instanceof Error ? err.message : "Access restricted";
-          if (msg.includes("FORBIDDEN") || msg.includes("UNAUTHORIZED")) {
-            setAuthError(msg);
-          }
-        }
+    const timer = setTimeout(() => {
+      if (active) {
+        fetchData();
       }
-    };
+    }, 0);
 
-    fetchData();
-    const interval = setInterval(fetchData, 6000);
+    const interval = setInterval(() => {
+      if (active) {
+        setCurrentTime(Date.now());
+        fetchData();
+      }
+    }, 4000);
 
     return () => {
       active = false;
+      clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [reportTimeframe]);
+  }, [isGateUnlocked, fetchData]);
 
-  const handleAddStaff = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStaffName.trim() || !newStaffPhone.trim()) {
-      alert("Please enter both staff name and mobile number.");
-      return;
-    }
-    setIsAddingStaff(true);
-    setStaffStatusMsg(null);
+  // Handle Order Status Transition (Approve, Cook, Ready, Deliver)
+  const handleTransition = async (orderId: string, toStatus: OrderStatus) => {
     try {
-      const added = await addStaffMember({
-        name: newStaffName.trim(),
-        phone: newStaffPhone.trim(),
-        role: newStaffRole,
-      });
-      setStaffList((prev) => {
-        const filtered = prev.filter((s) => s.id !== added.id);
-        return [...filtered, added];
-      });
-      setNewStaffName("");
-      setNewStaffPhone("");
-      setStaffStatusMsg(`Staff member ${added.name} successfully registered.`);
+      const updated = await transitionOrderStatus(orderId, toStatus);
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      if (newOrderAlert?.id === orderId) {
+        setNewOrderAlert(null);
+      }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to add staff member");
-    } finally {
-      setIsAddingStaff(false);
+      alert(err instanceof Error ? err.message : "Failed to transition order");
     }
   };
 
-  const handleToggleStaff = async (staffId: string) => {
-    try {
-      const nextActive = await toggleStaffStatus(staffId);
-      setStaffList((prev) =>
-        prev.map((s) => (s.id === staffId ? { ...s, isActive: nextActive } : s))
-      );
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to toggle staff status");
-    }
-  };
-
-  // Handle menu toggle
-  const handleToggleMenu = async (itemId: string, current: boolean) => {
-    try {
-      await toggleMenuItemAvailability(itemId, !current);
-      setMenuItems((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, effectiveAvailable: !current } : i))
-      );
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to toggle");
-    }
-  };
-
-  // Handle cafe open/close toggle
-  const handleToggleCafeOpen = async () => {
-    try {
-      const next = !cafeSettings.isOpen;
-      await updateCafeSettings({ isOpen: next });
-      setCafeSettings((prev) => ({ ...prev, isOpen: next }));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to update settings");
-    }
-  };
-
-  // Handle delivery toggle
-  const handleToggleDelivery = async () => {
-    try {
-      const next = !cafeSettings.deliveryEnabled;
-      await updateCafeSettings({ deliveryEnabled: next });
-      setCafeSettings((prev) => ({ ...prev, deliveryEnabled: next }));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to update settings");
-    }
-  };
-
-  // Handle table token rotation
+  // Handle Table Token Rotation
   const handleRotateToken = async (tableId: string) => {
     setRotatingTableId(tableId);
     try {
@@ -203,7 +301,7 @@ export default function AdminPage() {
     }
   };
 
-  // Handle mark paid
+  // Handle Mark Paid at Counter
   const handleMarkPaid = async (orderId: string) => {
     try {
       const updated = await markOrderPaidAtCounter(orderId);
@@ -213,33 +311,192 @@ export default function AdminPage() {
     }
   };
 
-  // Filtered menu items
+  // Handle Add Staff Member
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffPhone.trim()) {
+      setStaffStatusMsg("Please enter both staff name and phone number.");
+      return;
+    }
+
+    setIsAddingStaff(true);
+    setStaffStatusMsg(null);
+    try {
+      const added = await addStaffMember({
+        name: newStaffName.trim(),
+        phone: newStaffPhone.trim(),
+        email: newStaffEmail.trim() || undefined,
+        role: newStaffRole,
+      });
+      setStaffList((prev) => [...prev, added]);
+      setNewStaffName("");
+      setNewStaffPhone("");
+      setNewStaffEmail("");
+      setStaffStatusMsg(`Staff member ${added.name} successfully registered as ${added.role}!`);
+    } catch (err: unknown) {
+      setStaffStatusMsg(err instanceof Error ? err.message : "Failed to add staff member.");
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  // Handle Staff Active Toggle
+  const handleToggleStaff = async (staffId: string) => {
+    try {
+      const isNowActive = await toggleStaffStatus(staffId);
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === staffId ? { ...s, isActive: isNowActive } : s))
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update staff status");
+    }
+  };
+
+  // If Gatekeeper status is still loading
+  if (isGateUnlocked === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <div className="w-8 h-8 border-3 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // GATEKEEPER SCREEN (Passkey Required)
+  if (!isGateUnlocked) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl p-6 shadow-xl space-y-5 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30 text-[var(--brand-primary)] flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1">
+            <h1 className="text-lg font-extrabold font-display text-[var(--text)]">
+              Admin & Operations Gate
+            </h1>
+            <p className="text-xs text-[var(--text-muted)]">
+              Enter the master cafe passkey to unlock the admin subdomain and operations portal.
+            </p>
+          </div>
+
+          {gateError && (
+            <div className="p-3 rounded-xl bg-red-100 dark:bg-red-950/40 border border-red-500/40 text-xs text-red-700 dark:text-red-300 text-left flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <span>{gateError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleUnlockGate} className="space-y-3">
+            <input
+              type="password"
+              placeholder="Enter Admin Passkey (e.g. cheezy2026)"
+              value={gatePasskey}
+              onChange={(e) => setGatePasskey(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-sm bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] text-center tracking-wider"
+              autoFocus
+            />
+
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={gateSubmitting}
+              className="w-full h-11 font-bold text-sm"
+            >
+              {gateSubmitting ? "Verifying..." : "Unlock Admin Portal"}
+            </Button>
+          </form>
+
+          <p className="text-[11px] text-[var(--text-muted)] pt-2 border-t border-[var(--border)]">
+            Single-sign authorization persists for 30 days on this device.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Filtered orders for Kitchen KDS
+  const kitchenOrders = orders.filter((o) => {
+    if (kitchenFilter === "incoming") return o.orderStatus === "placed";
+    if (kitchenFilter === "cooking") return o.orderStatus === "accepted" || o.orderStatus === "preparing";
+    if (kitchenFilter === "ready") return o.orderStatus === "ready";
+    return o.orderStatus !== "cancelled" && o.orderStatus !== "rejected";
+  });
+
+  // Filtered menu items for Menu 86s
   const filteredMenu = menuItems.filter((i) =>
     i.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Staff summary counters
+  const totalAdmins = staffList.filter((s) => s.role === "admin" || s.role === "owner").length;
+  const totalKitchen = staffList.filter((s) => s.role === "kitchen").length;
+
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-3 max-w-lg mx-auto w-full pb-20 space-y-3 font-sans">
-      {/* Header */}
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-3 max-w-2xl mx-auto w-full pb-24 space-y-3 font-sans">
+      {/* Top Header */}
       <header className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
-        <div className="flex items-center gap-2">
-          <span className="w-9 h-9 rounded-xl bg-[var(--brand-primary)] text-[var(--text-on-brand)] flex items-center justify-center font-bold">
+        <div className="flex items-center gap-2.5">
+          <span className="w-10 h-10 rounded-xl bg-[var(--brand-primary)] text-[var(--text-on-brand)] flex items-center justify-center font-bold shadow-xs">
             <ShieldCheck className="w-5 h-5" />
           </span>
           <div>
-            <h1 className="text-base font-extrabold tracking-tight text-[var(--text)]">Cafe Admin</h1>
-            <p className="text-[11px] text-[var(--text-muted)]">Operations & Controls</p>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-base font-extrabold tracking-tight text-[var(--text)] font-display">
+                Cheezy Dip Cafe
+              </h1>
+              <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] border border-[var(--brand-primary)]/30">
+                Admin & KDS
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {currentStaff.name || "Master Dashboard"} • {currentStaff.role || "Staff"}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <ThemeToggle size="sm" />
-          <Link
-            href="/kitchen"
-            className="text-xs font-bold text-[var(--brand-primary)] hover:underline px-3 py-1.5 rounded-lg bg-[var(--bg-raised)] border border-[var(--border)] shadow-xs"
+        <div className="flex items-center gap-1.5">
+          {/* Audio Chime Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) playOrderAlertChime();
+            }}
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+              soundEnabled
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                : "bg-[var(--bg-raised)] border-[var(--border)] text-[var(--text-muted)]"
+            }`}
+            title={soundEnabled ? "Order sound alerts active" : "Order sound alerts muted"}
           >
-            Kitchen View →
-          </Link>
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          <ThemeToggle size="sm" />
+
+          {/* Clerk Profile */}
+          <Show when="signed-in">
+            <div className="w-9 h-9 flex items-center justify-center">
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "w-8 h-8 rounded-full border border-[var(--border)]",
+                  },
+                }}
+              />
+            </div>
+          </Show>
+
+          {/* Lock Gate */}
+          <button
+            type="button"
+            onClick={handleLockGate}
+            className="w-9 h-9 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-red-500 flex items-center justify-center transition-colors cursor-pointer"
+            title="Lock Admin Portal"
+          >
+            <Lock className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -252,489 +509,830 @@ export default function AdminPage() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                Staff Authentication Required
+                Staff Authentication Notice
               </h3>
               <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                Your account does not have Admin or Owner privileges. You can switch to Admin mode for testing below, or open the Staff Portal.
+                Your current Clerk session is not yet mapped to an active Admin role. You can switch to Admin testing mode below or verify staff credentials in the Staff tab.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={async () => {
                 await setDevStaffRole("admin");
-                setAuthError(null);
-                window.location.reload();
+                fetchData();
               }}
-              className="px-3.5 py-2 rounded-xl bg-[var(--brand-primary)] text-white text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-xs min-h-[44px]"
             >
-              👑 Activate Admin Mode
-            </button>
-            <Link
-              href="/staff"
-              className="px-3.5 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-raised)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors inline-flex items-center justify-center min-h-[44px]"
-            >
-              Staff Portal
+              Enable Admin Mode
+            </Button>
+            <Link href="/sign-in?redirect_url=/admin">
+              <Button variant="outline" size="sm">
+                Sign In With Staff Account
+              </Button>
             </Link>
           </div>
         </div>
       )}
 
-      {/* Admin Tab Navigation */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 text-xs font-bold">
+      {/* Primary Navigation Tabs */}
+      <nav className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none border-b border-[var(--border)]">
         {[
-          { id: "orders", label: "Orders", icon: ShoppingBag, count: orders.length },
-          { id: "reports", label: "Sales & Reports", icon: BarChart3 },
-          { id: "menu", label: "Menu", icon: Utensils, count: menuItems.length },
-          { id: "tables", label: "Tables & QR", icon: QrCode, count: tables.length },
-          { id: "settings", label: "Settings", icon: Settings },
-          { id: "staff", label: "Staff", icon: Users, count: staffList.length },
+          { key: "kitchen", label: "🍳 Kitchen KDS", count: orders.filter((o) => o.orderStatus === "placed").length },
+          { key: "orders", label: "🛍️ All Orders", count: orders.length },
+          { key: "staff", label: `👥 Staff (${totalAdmins + totalKitchen})` },
+          { key: "menu", label: "🍽️ Menu 86s" },
+          { key: "tables", label: "🏷️ Table QRs" },
+          { key: "reports", label: "📊 Sales" },
+          { key: "settings", label: "⚙️ Settings" },
         ].map((tab) => {
-          const Icon = tab.icon;
-          const isSelected = activeTab === tab.id;
+          const isActive = activeTab === tab.key;
           return (
             <button
-              key={tab.id}
+              key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`shrink-0 px-3 py-2 rounded-xl border min-h-[44px] flex items-center gap-1.5 transition-colors cursor-pointer ${
-                isSelected
-                  ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] border-[var(--brand-primary)] shadow-xs"
-                  : "bg-[var(--bg-raised)] text-[var(--text-muted)] border-[var(--border)] hover:text-[var(--text)]"
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                isActive
+                  ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] shadow-sm"
+                  : "bg-[var(--bg-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
             >
-              <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className="text-[10px] font-black opacity-80">({tab.count})</span>
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isActive
+                      ? "bg-white text-[var(--brand-primary)]"
+                      : "bg-[var(--accent)] text-white"
+                  }`}
+                >
+                  {tab.count}
+                </span>
               )}
             </button>
           );
         })}
-      </div>
+      </nav>
 
-      {/* TAB 1: ORDERS */}
-      {activeTab === "orders" && (
-        <div className="space-y-3 pt-1">
-          {orders.map((ord) => (
-            <div
-              key={ord.id}
-              className="p-3.5 rounded-2xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-2 shadow-xs"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-[var(--text)]">
-                    {ord.orderNumber}
-                  </span>
-                  <span className="text-xs text-[var(--brand-primary)] font-semibold">
-                    {ord.tableLabel || "Delivery"}
-                  </span>
-                </div>
-                <StatusBadge status={ord.orderStatus} />
-              </div>
-
-              <div className="text-xs text-[var(--text-muted)] space-y-1">
-                <p className="line-clamp-1 text-[var(--text)] font-medium">
-                  {ord.items.map((i) => `${i.quantity}x ${i.nameSnapshot}`).join(", ")}
-                </p>
-                <div className="flex justify-between items-center pt-1 text-[11px] text-[var(--text-muted)]">
-                  <span>Customer: {ord.contactPhone}</span>
-                  <span className="font-bold text-[var(--text)] text-xs">
-                    ₹{Math.round(ord.totalMinor / 100)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
-                <div>
-                  {ord.paymentStatus === "paid" ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Paid
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleMarkPaid(ord.id)}
-                      className="px-2.5 py-1 rounded bg-[var(--bg-inset)] hover:bg-[var(--border)] text-[var(--brand-primary)] font-semibold text-[11px] border border-[var(--border)] cursor-pointer"
-                    >
-                      Mark Paid at Counter
-                    </button>
-                  )}
-                </div>
-
-                <Link
-                  href={`/order/orders/${ord.id}`}
-                  className="text-[var(--brand-primary)] hover:underline flex items-center gap-1 font-semibold text-[11px]"
-                >
-                  Details <ExternalLink className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* TAB 2: REPORTS */}
-      {salesReport && activeTab === "reports" && (
-        <div className="space-y-3 pt-1">
-          {/* Timeframe selector */}
-          <div className="flex items-center gap-1 p-1 bg-[var(--bg-raised)] rounded-xl border border-[var(--border)] text-xs font-bold shadow-xs">
-            {(["today", "week", "month"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setReportTimeframe(t)}
-                className={`flex-1 py-1.5 rounded-lg capitalize transition-colors min-h-[38px] cursor-pointer ${
-                  reportTimeframe === t
-                    ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)] font-extrabold shadow-xs"
-                    : "text-[var(--text-muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                {t === "today" ? "Today" : t === "week" ? "This Week" : "This Month"}
-              </button>
-            ))}
-          </div>
-
-          {/* Metric Cards */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-1 shadow-xs">
-              <span className="text-[11px] text-[var(--text-muted)] font-semibold">Gross Revenue</span>
-              <p className="text-xl font-black text-[var(--brand-primary)]">
-                ₹{Math.round(salesReport.grossSalesMinor / 100)}
-              </p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-1 shadow-xs">
-              <span className="text-[11px] text-[var(--text-muted)] font-semibold">Total Orders</span>
-              <p className="text-xl font-black text-[var(--text)]">
-                {salesReport.totalOrdersCount}
-              </p>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-[var(--bg-raised)] border border-[var(--border)] flex justify-between items-center text-xs shadow-xs">
-            <span className="text-[var(--text-muted)]">Average Order Value (AOV)</span>
-            <span className="font-extrabold text-[var(--text)] text-sm">
-              ₹{Math.round(salesReport.averageOrderValueMinor / 100)}
-            </span>
-          </div>
-
-          {/* Channel Split (Dine-in vs Delivery) */}
-          <div className="p-4 bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl space-y-2 text-xs shadow-xs">
-            <h4 className="font-bold text-[var(--text)] text-xs pb-1 border-b border-[var(--border)] flex items-center justify-between">
-              <span>Channel Split</span>
-              <TrendingUp className="w-3.5 h-3.5 text-[var(--brand-primary)]" />
-            </h4>
-            <div className="flex justify-between items-center text-[var(--text-muted)]">
-              <span>🍽️ Dine-In ({salesReport.dineIn.ordersCount} orders)</span>
-              <span className="font-bold text-[var(--text)]">₹{Math.round(salesReport.dineIn.revenueMinor / 100)}</span>
-            </div>
-            <div className="flex justify-between items-center text-[var(--text-muted)]">
-              <span>🛵 Delivery ({salesReport.delivery.ordersCount} orders)</span>
-              <span className="font-bold text-[var(--text)]">₹{Math.round(salesReport.delivery.revenueMinor / 100)}</span>
-            </div>
-          </div>
-
-          {/* Top Selling Dishes */}
-          <div className="p-4 bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl space-y-2.5 text-xs shadow-xs">
-            <h4 className="font-bold text-[var(--text)] text-xs pb-1 border-b border-[var(--border)]">
-              Top Selling Dishes
-            </h4>
-            {salesReport.topDishes.length > 0 ? (
-              salesReport.topDishes.map((dish, idx) => (
-                <div key={idx} className="flex justify-between items-center text-[var(--text-muted)]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[var(--bg-inset)] text-[10px] font-bold text-[var(--brand-primary)] flex items-center justify-center">
-                      {idx + 1}
-                    </span>
-                    <span className="font-semibold text-[var(--text)] truncate">{dish.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[var(--text-muted)]">{dish.quantity} sold</span>
-                    <span className="font-bold text-[var(--brand-primary)]">₹{Math.round(dish.revenueMinor / 100)}</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-[var(--text-muted)] text-center py-2">No completed orders yet in this timeframe.</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: MENU MANAGEMENT */}
-      {activeTab === "menu" && (
-        <div className="space-y-3 pt-1">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-            <input
-              type="search"
-              placeholder="Filter menu items to toggle sold out..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-xs bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            {filteredMenu.map((item) => (
-              <div
-                key={item.id}
-                className="p-3 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl flex items-center justify-between shadow-xs"
-              >
-                <div>
-                  <h4 className="text-xs font-bold text-[var(--text)]">{item.name}</h4>
-                  <p className="text-[11px] text-[var(--brand-primary)] font-semibold">
-                    ₹{Math.round(item.priceMinor / 100)}
-                  </p>
-                </div>
-
+      {/* ======================================================== */}
+      {/* 1. KITCHEN KDS TAB (Integrated Kitchen Display System)   */}
+      {/* ======================================================== */}
+      {activeTab === "kitchen" && (
+        <section className="space-y-3">
+          {/* Sub-status filters */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 bg-[var(--bg-inset)] p-1 rounded-xl border border-[var(--border)]">
+              {[
+                { key: "incoming", label: "Incoming", count: orders.filter((o) => o.orderStatus === "placed").length },
+                { key: "cooking", label: "In Prep", count: orders.filter((o) => o.orderStatus === "accepted" || o.orderStatus === "preparing").length },
+                { key: "ready", label: "Ready", count: orders.filter((o) => o.orderStatus === "ready").length },
+                { key: "all", label: "All Active" },
+              ].map((sub) => (
                 <button
+                  key={sub.key}
                   type="button"
-                  onClick={() => handleToggleMenu(item.id, item.effectiveAvailable)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors min-h-[44px] flex items-center gap-1.5 border cursor-pointer ${
-                    item.effectiveAvailable
-                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                      : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30"
+                  onClick={() => setKitchenFilter(sub.key as typeof kitchenFilter)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                    kitchenFilter === sub.key
+                      ? "bg-[var(--bg-raised)] text-[var(--text)] shadow-xs border border-[var(--border)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text)]"
                   }`}
                 >
-                  {item.effectiveAvailable ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Available
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-3.5 h-3.5" /> Sold Out
-                    </>
+                  <span>{sub.label}</span>
+                  {sub.count !== undefined && sub.count > 0 && (
+                    <span className="text-[10px] px-1 bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-full font-bold">
+                      {sub.count}
+                    </span>
                   )}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchData}
+              className="text-xs h-8 px-2 flex items-center gap-1 text-[var(--text-muted)]"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
+            </Button>
+          </div>
+
+          {/* Kitchen Orders Cards Queue */}
+          {kitchenOrders.length === 0 ? (
+            <div className="p-12 text-center bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2">
+              <ChefHat className="w-8 h-8 text-[var(--text-muted)] mx-auto opacity-60" />
+              <p className="text-sm font-bold text-[var(--text)]">No orders in this queue</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Incoming orders will appear here automatically with realtime sound alert.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {kitchenOrders.map((order) => {
+                const elapsedMin = Math.floor(
+                  (currentTime - new Date(order.placedAt).getTime()) / 60000
+                );
+                const deliverySnap = order.deliveryAddressSnapshot as
+                  | {
+                      recipientName?: string;
+                      phone?: string;
+                      line1?: string;
+                      area?: string;
+                      pincode?: string;
+                      googleMapsUrl?: string;
+                      latitude?: number;
+                      longitude?: number;
+                    }
+                  | undefined;
+
+                const mapsUrl =
+                  deliverySnap?.googleMapsUrl ||
+                  (deliverySnap?.latitude && deliverySnap?.longitude
+                    ? `https://www.google.com/maps?q=${deliverySnap.latitude},${deliverySnap.longitude}`
+                    : deliverySnap?.line1
+                    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        `${deliverySnap.line1}, ${deliverySnap.area || ""} ${deliverySnap.pincode || ""}`
+                      )}`
+                    : null);
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`p-4 bg-[var(--bg-raised)] rounded-2xl border transition-all space-y-3 shadow-xs ${
+                      order.orderStatus === "placed"
+                        ? "border-amber-500/60 ring-2 ring-amber-500/20 bg-amber-50/10 dark:bg-amber-950/10"
+                        : "border-[var(--border)]"
+                    }`}
+                  >
+                    {/* Header: Number, Elapsed Time, Type Badge */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-extrabold text-[var(--text)]">
+                            {order.orderNumber}
+                          </h3>
+                          <StatusBadge status={order.orderStatus} />
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mt-0.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{elapsedMin}m ago</span>
+                          <span>•</span>
+                          <span className="font-semibold text-[var(--text)]">
+                            {order.orderType === "dine_in"
+                              ? `Dine-In (${order.tableLabel || "Table"})`
+                              : "Delivery"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Payment State */}
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
+                          order.paymentStatus === "paid"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                        }`}
+                      >
+                        {order.paymentStatus === "paid"
+                          ? "✓ Paid"
+                          : order.orderType === "dine_in"
+                          ? "Pay at Counter"
+                          : "Prepaid Pending"}
+                      </span>
+                    </div>
+
+                    {/* Customer & Location Info (With Mobile & Google Maps GPS Button) */}
+                    <div className="p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)] text-xs space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`tel:${order.contactPhone || deliverySnap?.phone}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/20 transition-colors"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            <span>{order.contactPhone || deliverySnap?.phone || "Customer Call"}</span>
+                          </a>
+                          {deliverySnap?.recipientName && (
+                            <span className="text-[var(--text)] font-medium">
+                              ({deliverySnap.recipientName})
+                            </span>
+                          )}
+                        </div>
+
+                        {order.orderType === "delivery" && mapsUrl && (
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors shadow-2xs"
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>🗺️ Open in Google Maps</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {order.orderType === "delivery" && deliverySnap && (
+                        <p className="text-[11px] text-[var(--text-muted)] leading-tight">
+                          📍 {deliverySnap.line1}, {deliverySnap.area} - {deliverySnap.pincode}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Order Items Breakdown */}
+                    <div className="divide-y divide-[var(--border)]/60 text-xs">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="py-1.5 flex justify-between items-start">
+                          <div>
+                            <span className="font-bold text-sm text-[var(--text)] mr-2">
+                              {item.quantity}x
+                            </span>
+                            <span className="font-semibold text-[var(--text)]">
+                              {item.nameSnapshot}
+                            </span>
+                            {item.modifiersSnapshot && item.modifiersSnapshot.length > 0 && (
+                              <p className="text-[11px] text-[var(--text-muted)] ml-6">
+                                {item.modifiersSnapshot.map((m) => m.label).join(", ")}
+                              </p>
+                            )}
+                            {item.note && (
+                              <p className="text-[11px] text-[var(--brand-primary)] italic ml-6">
+                                Note: &quot;{item.note}&quot;
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[var(--text-muted)] shrink-0 font-medium">
+                            ₹{Math.round(item.lineTotalMinor / 100)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {order.customerNote && (
+                      <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-300">
+                        <strong>Kitchen Special:</strong> {order.customerNote}
+                      </div>
+                    )}
+
+                    {/* Transition Actions */}
+                    <div className="pt-2 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs font-bold text-[var(--text)]">
+                        Total: ₹{Math.round(order.totalMinor / 100)}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {order.orderStatus === "placed" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleTransition(order.id, "preparing")}
+                            className="font-bold text-xs"
+                          >
+                            <Flame className="w-3.5 h-3.5 mr-1" />
+                            Approve & Cook
+                          </Button>
+                        )}
+
+                        {order.orderStatus === "preparing" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleTransition(order.id, "ready")}
+                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" />
+                            Mark Ready
+                          </Button>
+                        )}
+
+                        {order.orderStatus === "ready" && order.orderType === "dine_in" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleTransition(order.id, "served")}
+                            className="font-bold text-xs"
+                          >
+                            Serve to Table
+                          </Button>
+                        )}
+
+                        {order.orderStatus === "ready" && order.orderType === "delivery" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleTransition(order.id, "out_for_delivery")}
+                            className="font-bold text-xs"
+                          >
+                            Out for Delivery
+                          </Button>
+                        )}
+
+                        {order.orderStatus === "out_for_delivery" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleTransition(order.id, "delivered")}
+                            className="font-bold text-xs bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            Mark Delivered
+                          </Button>
+                        )}
+
+                        {order.orderType === "dine_in" && order.paymentStatus !== "paid" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleMarkPaid(order.id)}
+                            className="text-xs font-bold text-emerald-600 border-emerald-500/30"
+                          >
+                            Mark Paid at Counter
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ======================================================== */}
+      {/* 2. ALL ORDERS TAB (Full History, Search, Filters)       */}
+      {/* ======================================================== */}
+      {activeTab === "orders" && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Search by order #, phone, table..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)] min-h-[44px]"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchData} className="min-h-[44px] px-3">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="space-y-2.5">
+            {orders
+              .filter(
+                (o) =>
+                  o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  o.contactPhone?.includes(searchQuery) ||
+                  o.tableLabel?.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .map((order) => (
+                <div
+                  key={order.id}
+                  className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2 text-xs"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-[var(--text)]">
+                          {order.orderNumber}
+                        </span>
+                        <StatusBadge status={order.orderStatus} />
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                        {order.orderType === "dine_in"
+                          ? `Dine-in • ${order.tableLabel || "Table"}`
+                          : "Delivery"}{" "}
+                        • {new Date(order.placedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+
+                    <span className="font-extrabold text-sm text-[var(--brand-primary)]">
+                      ₹{Math.round(order.totalMinor / 100)}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    {order.items.map((i) => `${i.quantity}x ${i.nameSnapshot}`).join(", ")}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
+      {/* ======================================================== */}
+      {/* 3. STAFF & ADMINS TAB                                    */}
+      {/* ======================================================== */}
+      {activeTab === "staff" && (
+        <section className="space-y-4">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)]">
+              <p className="text-[11px] text-[var(--text-muted)] font-medium">Registered Admins</p>
+              <p className="text-xl font-extrabold text-[var(--text)] mt-0.5">{totalAdmins}</p>
+            </div>
+            <div className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)]">
+              <p className="text-[11px] text-[var(--text-muted)] font-medium">Kitchen Staff</p>
+              <p className="text-xl font-extrabold text-[var(--text)] mt-0.5">{totalKitchen}</p>
+            </div>
+          </div>
+
+          {/* Add Staff Form */}
+          <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-3">
+            <h3 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-[var(--brand-primary)]" />
+              Add New Staff / Admin Member
+            </h3>
+
+            {staffStatusMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-300">
+                {staffStatusMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleAddStaff} className="space-y-2.5 text-xs">
+              <input
+                type="text"
+                placeholder="Full Name (e.g. Rahul Sharma)"
+                value={newStaffName}
+                onChange={(e) => setNewStaffName(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 min-h-[44px]"
+                required
+              />
+              <input
+                type="tel"
+                placeholder="Mobile Number (+919876543210)"
+                value={newStaffPhone}
+                onChange={(e) => setNewStaffPhone(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 min-h-[44px]"
+                required
+              />
+              <input
+                type="email"
+                placeholder="Email for Clerk Login (e.g. admin@cheezydipcafe.com)"
+                value={newStaffEmail}
+                onChange={(e) => setNewStaffEmail(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] placeholder-[var(--text-muted)]/60 min-h-[44px]"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={newStaffRole}
+                  onChange={(e) =>
+                    setNewStaffRole(e.target.value as "kitchen" | "admin" | "owner")
+                  }
+                  className="flex-1 px-3 py-2 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[var(--text)] min-h-[44px]"
+                >
+                  <option value="kitchen">🍳 Kitchen Staff</option>
+                  <option value="admin">🛡️ Admin Manager</option>
+                  <option value="owner">👑 Owner / Proprietor</option>
+                </select>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={isAddingStaff}
+                  className="min-h-[44px] px-4 font-bold"
+                >
+                  {isAddingStaff ? "Adding..." : "+ Add Staff"}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Current Staff List */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-[var(--text)]">All Registered Staff</h3>
+            <div className="divide-y divide-[var(--border)] bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] overflow-hidden">
+              {staffList.map((member) => (
+                <div key={member.id} className="p-3.5 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[var(--text)]">{member.name}</span>
+                      <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.2 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text-muted)]">
+                        {member.role}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)] mt-0.5 space-y-0.5">
+                      <p>Phone: {member.phone}</p>
+                      {member.email && <p>Email: {member.email}</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStaff(member.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                        member.isActive
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                          : "bg-stone-500/10 text-stone-500 border border-stone-500/30"
+                      }`}
+                    >
+                      {member.isActive ? "Active" : "Inactive"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ======================================================== */}
+      {/* 4. MENU 86s TAB                                          */}
+      {/* ======================================================== */}
+      {activeTab === "menu" && (
+        <section className="space-y-3">
+          <input
+            type="text"
+            placeholder="Search menu item to toggle availability..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-3 py-2 text-xs bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-[var(--text)] min-h-[44px]"
+          />
+
+          <div className="divide-y divide-[var(--border)] bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] overflow-hidden">
+            {filteredMenu.map((item) => (
+              <div key={item.id} className="p-3 flex items-center justify-between text-xs">
+                <div>
+                  <p className="font-bold text-[var(--text)]">{item.name}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">₹{Math.round(item.priceMinor / 100)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await toggleMenuItemAvailability(item.id, !item.effectiveAvailable);
+                    setMenuItems((prev) =>
+                      prev.map((i) => (i.id === item.id ? { ...i, effectiveAvailable: res.isAvailable } : i))
+                    );
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                    item.effectiveAvailable
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                      : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
+                  }`}
+                >
+                  {item.effectiveAvailable ? "In Stock" : "86'd (Sold Out)"}
                 </button>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* TAB 4: TABLES & QR */}
+      {/* ======================================================== */}
+      {/* 5. TABLE QRS TAB                                         */}
+      {/* ======================================================== */}
       {activeTab === "tables" && (
-        <div className="space-y-3 pt-1">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200">
-            <p className="font-bold text-amber-800 dark:text-amber-300">Permanent Table QR Sessions</p>
-            <p className="text-[11px] mt-0.5">
-              Customers scan these QR codes to dine in. Rotating a token immediately invalidates old printed stickers.
-            </p>
+        <section className="space-y-3">
+          <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-xs text-[var(--text-muted)]">
+            Permanent QR table tokens are signed cryptographically. Rotate token if table stickers are compromised.
           </div>
 
-          <div className="space-y-2">
-            {tables.map((tbl) => (
-              <div
-                key={tbl.id}
-                className="p-3.5 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl space-y-2 shadow-xs"
-              >
+          <div className="grid grid-cols-2 gap-2.5">
+            {tables.map((table) => (
+              <div key={table.id} className="p-3.5 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-[var(--text)]">{tbl.label}</span>
-                    <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded border border-[var(--border)]">
-                      {tbl.token}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRotateToken(tbl.id)}
-                    disabled={rotatingTableId === tbl.id}
-                    className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1 min-h-[44px] px-2 font-semibold cursor-pointer"
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 ${rotatingTableId === tbl.id ? "animate-spin" : ""}`} />
-                    Rotate Token
-                  </button>
+                  <h4 className="font-bold text-sm text-[var(--text)]">{table.label}</h4>
+                  <QrCode className="w-4 h-4 text-[var(--brand-primary)]" />
                 </div>
-
-                <div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--border)]">
-                  <span className="text-[var(--text-muted)] text-[11px]">QR Scan URL: /t/{tbl.token}</span>
+                <p className="text-[10px] text-[var(--text-muted)] font-mono truncate">
+                  {table.token}
+                </p>
+                <div className="pt-1 flex gap-1.5">
                   <Link
-                    href={`/t/${tbl.token}`}
+                    href={`/t/${table.token}`}
                     target="_blank"
-                    className="text-xs font-bold text-[var(--brand-primary)] hover:underline flex items-center gap-1"
+                    className="flex-1 text-center py-1 rounded-lg bg-[var(--bg-inset)] border border-[var(--border)] text-[11px] font-bold text-[var(--brand-primary)] hover:underline"
                   >
-                    Test Scan <ExternalLink className="w-3 h-3" />
+                    Open Link →
                   </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRotateToken(table.id)}
+                    disabled={rotatingTableId === table.id}
+                    className="px-2 h-7"
+                    title="Rotate QR Token"
+                  >
+                    <RotateCw className={`w-3 h-3 ${rotatingTableId === table.id ? "animate-spin" : ""}`} />
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* TAB 5: SETTINGS */}
-      {activeTab === "settings" && (
-        <div className="space-y-3 pt-1">
-          <div className="p-4 bg-[var(--bg-raised)] border border-[var(--border)] rounded-2xl space-y-4 shadow-xs">
-            <h3 className="text-sm font-bold text-[var(--text)] border-b border-[var(--border)] pb-2">
-              Cafe Operational Status
-            </h3>
+      {/* ======================================================== */}
+      {/* 6. REPORTS TAB                                           */}
+      {/* ======================================================== */}
+      {activeTab === "reports" && salesReport && (
+        <section className="space-y-3">
+          <div className="flex gap-2">
+            {(["today", "week", "month"] as const).map((tf) => (
+              <Button
+                key={tf}
+                variant={reportTimeframe === tf ? "primary" : "outline"}
+                size="sm"
+                onClick={() => setReportTimeframe(tf)}
+                className="flex-1 capitalize text-xs"
+              >
+                {tf}
+              </Button>
+            ))}
+          </div>
 
-            {/* Open / Closed Switch */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
+              <p className="text-[10px] text-[var(--text-muted)]">Net Sales</p>
+              <p className="text-base font-extrabold text-[var(--brand-primary)] mt-0.5">
+                ₹{Math.round(salesReport.grossSalesMinor / 100)}
+              </p>
+            </div>
+            <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
+              <p className="text-[10px] text-[var(--text-muted)]">Orders</p>
+              <p className="text-base font-extrabold text-[var(--text)] mt-0.5">
+                {salesReport.totalOrdersCount}
+              </p>
+            </div>
+            <div className="p-3 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] text-center">
+              <p className="text-[10px] text-[var(--text-muted)]">Avg Order</p>
+              <p className="text-base font-extrabold text-[var(--text)] mt-0.5">
+                ₹{Math.round(salesReport.averageOrderValueMinor / 100)}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. SETTINGS TAB                                          */}
+      {/* ======================================================== */}
+      {activeTab === "settings" && (
+        <section className="space-y-3">
+          <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-3 text-xs">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-[var(--text)]">Cafe Kitchen Open</p>
-                <p className="text-[11px] text-[var(--text-muted)]">Accepting dine-in and online orders</p>
+                <p className="font-bold text-[var(--text)]">Cafe Store Status</p>
+                <p className="text-[11px] text-[var(--text-muted)]">Accept dine-in & online orders</p>
               </div>
               <button
                 type="button"
-                onClick={handleToggleCafeOpen}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border min-h-[44px] flex items-center gap-1.5 cursor-pointer ${
+                onClick={async () => {
+                  const updated = await updateCafeSettings({ isOpen: !cafeSettings.isOpen });
+                  setCafeSettings((prev) => ({ ...prev, isOpen: updated.isOpen }));
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
                   cafeSettings.isOpen
-                    ? "bg-emerald-600 dark:bg-emerald-500 text-white dark:text-black border-emerald-400 font-black"
-                    : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 border-red-500/40"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                    : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
                 }`}
               >
-                <Power className="w-4 h-4" />
-                {cafeSettings.isOpen ? "OPEN" : "CLOSED"}
+                {cafeSettings.isOpen ? "Open" : "Closed"}
               </button>
             </div>
 
-            {/* Delivery Switch */}
             <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
               <div>
-                <p className="text-xs font-bold text-[var(--text)]">Home Delivery</p>
-                <p className="text-[11px] text-[var(--text-muted)]">Doorstep delivery via Razorpay</p>
+                <p className="font-bold text-[var(--text)]">Delivery Orders</p>
+                <p className="text-[11px] text-[var(--text-muted)]">Enable / disable delivery checkout</p>
               </div>
               <button
                 type="button"
-                onClick={handleToggleDelivery}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border min-h-[44px] flex items-center gap-1.5 cursor-pointer ${
+                onClick={async () => {
+                  const updated = await updateCafeSettings({ deliveryEnabled: !cafeSettings.deliveryEnabled });
+                  setCafeSettings((prev) => ({ ...prev, deliveryEnabled: updated.deliveryEnabled }));
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
                   cafeSettings.deliveryEnabled
-                    ? "bg-emerald-600 dark:bg-emerald-500 text-white dark:text-black border-emerald-400 font-black"
-                    : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 border-red-500/40"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                    : "bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30"
                 }`}
               >
-                {cafeSettings.deliveryEnabled ? "ENABLED" : "DISABLED"}
+                {cafeSettings.deliveryEnabled ? "Active" : "Paused"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ======================================================== */}
+      {/* REAL-TIME NEW ORDER MODAL ALERT (Screen Pop-up)          */}
+      {/* ======================================================== */}
+      {newOrderAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[var(--bg-raised)] border-2 border-[var(--brand-primary)] rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            {/* Pop-up Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-[var(--border)]">
+              <div className="flex items-center gap-2.5">
+                <span className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black animate-pulse">
+                  <Bell className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-extrabold text-[var(--text)]">
+                    🚨 NEW ORDER RECEIVED!
+                  </h2>
+                  <p className="text-xs text-[var(--brand-primary)] font-bold">
+                    Order #{newOrderAlert.orderNumber}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setNewOrderAlert(null)}
+                className="w-8 h-8 rounded-full bg-[var(--bg-inset)] text-[var(--text-muted)] hover:text-[var(--text)] flex items-center justify-center cursor-pointer text-sm font-bold"
+              >
+                ✕
               </button>
             </div>
 
-            <div className="pt-3 border-t border-[var(--border)] text-xs text-[var(--text-muted)] space-y-1">
-              <p>Operating Hours: <span className="text-[var(--text)] font-semibold">{cafeSettings.openingHours}</span></p>
-              <p>Standard Delivery Fee: <span className="text-[var(--text)] font-semibold">₹30</span></p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 6: STAFF */}
-      {activeTab === "staff" && (
-        <div className="space-y-4 pt-1">
-          {/* RBAC Info Card */}
-          <div className="p-3.5 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-muted)] shadow-xs space-y-1">
-            <p className="font-bold text-[var(--text)]">Staff Role-Based Access Control (RBAC)</p>
-            <p className="text-[11px] leading-relaxed">
-              Staff roles are validated server-side from <code className="text-[10px] bg-[var(--bg-inset)] px-1 py-0.5 rounded">staff_members</code> using their verified mobile phone number.
-            </p>
-          </div>
-
-          {/* Add Staff Member Form */}
-          <form
-            onSubmit={handleAddStaff}
-            className="p-4 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl shadow-xs space-y-3"
-          >
-            <h4 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider">
-              Register New Staff Member
-            </h4>
-
-            {staffStatusMsg && (
-              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
-                ✓ {staffStatusMsg}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ramesh Chef"
-                  value={newStaffName}
-                  onChange={(e) => setNewStaffName(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
-                  required
-                />
+            {/* Type & Table / Location Breakdown */}
+            <div className="p-3 bg-[var(--bg-inset)] rounded-2xl border border-[var(--border)] space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-[var(--text)]">
+                  {newOrderAlert.orderType === "dine_in"
+                    ? `🍽️ Dine-In • ${newOrderAlert.tableLabel || "Table"}`
+                    : "🛵 Home Delivery"}
+                </span>
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                  ₹{Math.round(newOrderAlert.totalMinor / 100)}
+                </span>
               </div>
 
-              <div>
-                <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
-                  Verified Mobile Phone
-                </label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  value={newStaffPhone}
-                  onChange={(e) => setNewStaffPhone(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
-                  required
-                />
+              {/* Customer Phone & Google Maps GPS */}
+              <div className="pt-2 border-t border-[var(--border)]/70 flex flex-wrap items-center justify-between gap-2">
+                <a
+                  href={`tel:${newOrderAlert.contactPhone}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] font-bold hover:bg-[var(--brand-primary)]/25"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>{newOrderAlert.contactPhone}</span>
+                </a>
+
+                {newOrderAlert.orderType === "delivery" &&
+                  (newOrderAlert.deliveryAddressSnapshot as { googleMapsUrl?: string })?.googleMapsUrl && (
+                    <a
+                      href={(newOrderAlert.deliveryAddressSnapshot as { googleMapsUrl?: string }).googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>🗺️ Open in Google Maps</span>
+                    </a>
+                  )}
               </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
-                Assigned Role
-              </label>
-              <select
-                value={newStaffRole}
-                onChange={(e) => setNewStaffRole(e.target.value as typeof newStaffRole)}
-                className="w-full text-xs px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--brand-primary)]"
-              >
-                <option value="kitchen">Kitchen Staff (Kitchen Display Queue, Food Prep)</option>
-                <option value="admin">Admin / Manager (Orders, 86 Items, Table QRs)</option>
-                <option value="owner">Cafe Owner (Full System Control, Reports & Staff)</option>
-              </select>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isAddingStaff}
-              className="w-full font-bold text-xs justify-center min-h-[44px]"
-            >
-              {isAddingStaff ? "Registering..." : "Add Staff Member"}
-            </Button>
-          </form>
-
-          {/* Active Staff List */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-              Active Staff Directory ({staffList.length})
-            </h4>
-
-            {staffList.map((st) => (
-              <div
-                key={st.id}
-                className="p-3 bg-[var(--bg-raised)] border border-[var(--border)] rounded-xl flex items-center justify-between text-xs shadow-xs"
-              >
-                <div>
-                  <h4 className="font-bold text-[var(--text)]">{st.name}</h4>
-                  <p className="text-[11px] text-[var(--text-muted)]">{st.phone}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[var(--brand-primary)] text-white">
-                    {st.role}
+            {/* Items List */}
+            <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs pr-1">
+              <p className="font-bold text-[var(--text)] text-xs">Order Items:</p>
+              {newOrderAlert.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-start text-[var(--text)]">
+                  <div>
+                    <span className="font-bold mr-1.5 text-[var(--brand-primary)]">
+                      {item.quantity}x
+                    </span>
+                    <span className="font-semibold">{item.nameSnapshot}</span>
+                    {item.modifiersSnapshot && item.modifiersSnapshot.length > 0 && (
+                      <p className="text-[11px] text-[var(--text-muted)] ml-5">
+                        {item.modifiersSnapshot.map((m) => m.label).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-medium shrink-0">
+                    ₹{Math.round(item.lineTotalMinor / 100)}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStaff(st.id)}
-                    className={`text-[10px] font-bold px-2 py-1 rounded border min-h-[32px] cursor-pointer transition-colors ${
-                      st.isActive !== false
-                        ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
-                        : "border-red-500/40 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300"
-                    }`}
-                  >
-                    {st.isActive !== false ? "Active" : "Inactive"}
-                  </button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* Approval Action */}
+            <div className="pt-2 flex gap-2">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setNewOrderAlert(null)}
+                className="flex-1 text-xs"
+              >
+                Review in KDS
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => handleTransition(newOrderAlert.id, "preparing")}
+                className="flex-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Check className="w-4 h-4 mr-1" />
+                Approve & Cook
+              </Button>
+            </div>
           </div>
         </div>
       )}

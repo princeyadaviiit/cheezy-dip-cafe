@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import {
   STAFF_STORE,
+  findStaffByIdentifier,
   findStaffByPhoneOrId,
   type StaffRole,
 } from "./staff-store";
@@ -11,6 +12,8 @@ export type { StaffRole };
 export interface AuthenticatedUser {
   userId: string;
   phone?: string;
+  email?: string;
+  name?: string;
   role?: StaffRole;
 }
 
@@ -26,9 +29,13 @@ export async function getAuthSession(): Promise<AuthenticatedUser | null> {
     }
     const user = await currentUser();
     const phone = user?.phoneNumbers?.[0]?.phoneNumber;
+    const email = user?.emailAddresses?.[0]?.emailAddress;
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || undefined;
     return {
       userId,
       phone,
+      email,
+      name,
     };
   } catch {
     // In mock/test environments without active Clerk keys
@@ -36,6 +43,7 @@ export async function getAuthSession(): Promise<AuthenticatedUser | null> {
       return {
         userId: "test_customer_clerk_id",
         phone: "+919123456789",
+        email: "customer@test.com",
       };
     }
     return null;
@@ -49,7 +57,7 @@ export async function getAuthSession(): Promise<AuthenticatedUser | null> {
 export async function requireCustomerAuth(): Promise<AuthenticatedUser> {
   const session = await getAuthSession();
   if (!session || !session.userId) {
-    throw new Error("UNAUTHORIZED: Customer must be logged in with a verified phone number.");
+    throw new Error("UNAUTHORIZED: Customer must be logged in to proceed.");
   }
   return session;
 }
@@ -57,10 +65,14 @@ export async function requireCustomerAuth(): Promise<AuthenticatedUser> {
 /**
  * Resolves staff role for a user.
  * 1. Checks unit test legacy IDs.
- * 2. Checks active dev role cookie (for seamless testing & switching).
- * 3. Checks registered staff members in STAFF_STORE (mirrors Supabase public.staff_members) by userId or phone.
+ * 2. Checks active dev role cookie (for testing & switching).
+ * 3. Checks registered staff members in STAFF_STORE (mirrors Supabase public.staff_members) by userId, email, or phone.
  */
-export async function getStaffRole(userId: string, phone?: string): Promise<StaffRole | null> {
+export async function getStaffRole(
+  userId: string,
+  phone?: string,
+  email?: string
+): Promise<StaffRole | null> {
   // 1. Test/Development seed staff lookup (for backwards compatibility with unit tests)
   const testStaffMap: Record<string, StaffRole> = {
     user_owner_01: "owner",
@@ -74,7 +86,7 @@ export async function getStaffRole(userId: string, phone?: string): Promise<Staf
     return testStaffMap[userId];
   }
 
-  // 2. Dev role cookie override (for testing staff flows without switching Clerk phone accounts)
+  // 2. Dev role cookie override (for testing staff flows without switching Clerk accounts)
   try {
     const cookieStore = await cookies();
     const devRole = cookieStore.get("cd_staff_role")?.value;
@@ -86,14 +98,25 @@ export async function getStaffRole(userId: string, phone?: string): Promise<Staf
   }
 
   // 3. Check staff directory by Clerk userId
-  const memberByUserId = findStaffByPhoneOrId(userId);
+  const memberByUserId = findStaffByIdentifier(userId);
   if (memberByUserId && memberByUserId.isActive) {
     return memberByUserId.role;
   }
 
-  // 4. Check staff directory by verified phone number
+  // 4. Check staff directory by verified email
+  if (email) {
+    const memberByEmail = findStaffByIdentifier(email);
+    if (memberByEmail && memberByEmail.isActive) {
+      if (!memberByEmail.clerkUserId) {
+        memberByEmail.clerkUserId = userId;
+      }
+      return memberByEmail.role;
+    }
+  }
+
+  // 5. Check staff directory by verified phone number
   if (phone) {
-    const memberByPhone = findStaffByPhoneOrId(phone);
+    const memberByPhone = findStaffByIdentifier(phone);
     if (memberByPhone && memberByPhone.isActive) {
       if (!memberByPhone.clerkUserId) {
         memberByPhone.clerkUserId = userId;
@@ -112,7 +135,7 @@ export async function requireStaffAuth(
   allowedRoles: StaffRole[] = ["kitchen", "admin", "owner"]
 ): Promise<AuthenticatedUser & { role: StaffRole }> {
   const session = await requireCustomerAuth();
-  const role = await getStaffRole(session.userId, session.phone);
+  const role = await getStaffRole(session.userId, session.phone, session.email);
 
   if (!role || !allowedRoles.includes(role)) {
     throw new Error(

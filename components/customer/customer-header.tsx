@@ -63,11 +63,6 @@ export function CustomerHeader() {
                   labelIcon={<User className="w-4 h-4 text-[var(--text-muted)]" />}
                   href="/order/account"
                 />
-                <UserButton.Link
-                  label="Staff Portal"
-                  labelIcon={<ShieldCheck className="w-4 h-4 text-[var(--accent)]" />}
-                  href="/staff"
-                />
               </UserButton.MenuItems>
             </UserButton>
           </div>

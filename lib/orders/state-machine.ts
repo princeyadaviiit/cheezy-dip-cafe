@@ -10,8 +10,9 @@ interface TransitionRule {
 }
 
 const TRANSITIONS: TransitionRule[] = [
-  // Dine-in & Delivery Placed to Accepted
+  // Dine-in & Delivery Placed to Accepted / Preparing
   { from: "placed", to: "accepted", allowedActors: ["kitchen", "admin", "owner"] },
+  { from: "placed", to: "preparing", allowedActors: ["kitchen", "admin", "owner"] },
   { from: "placed", to: "rejected", allowedActors: ["kitchen", "admin", "owner"] },
   { from: "placed", to: "cancelled", allowedActors: ["customer", "admin", "owner"] }, // OD-06 customer can cancel before acceptance
 

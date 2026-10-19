@@ -259,7 +259,6 @@ export default function LandingPage() {
           <Link href="/refund-policy" className="hover:text-[var(--text)]">Refunds</Link>
           <Link href="/delivery-policy" className="hover:text-[var(--text)]">Delivery</Link>
           <Link href="/contact" className="hover:text-[var(--text)]">Contact</Link>
-          <Link href="/staff" className="hover:text-[var(--text)] font-medium text-[var(--brand-primary)]">Staff Portal</Link>
         </div>
         <p className="text-[11px] text-[var(--text-muted)]/80">
           FSSAI License: 22824012000000 (Regd) • GST: 07AAAAA0000A1Z5

@@ -7,6 +7,7 @@ export interface StaffMember {
   clerkUserId?: string;
   name: string;
   phone: string;
+  email?: string;
   role: StaffRole;
   isActive: boolean;
   createdAt?: string;
@@ -19,6 +20,7 @@ export const STAFF_STORE: StaffMember[] = [
     clerkUserId: "user_owner_default",
     name: "Cafe Owner",
     phone: "+919876543210",
+    email: "owner@cheezydipcafe.com",
     role: "owner",
     isActive: true,
     createdAt: new Date().toISOString(),
@@ -28,6 +30,7 @@ export const STAFF_STORE: StaffMember[] = [
     clerkUserId: "user_admin_vikram",
     name: "Vikram Admin",
     phone: "+919876543211",
+    email: "admin@cheezydipcafe.com",
     role: "admin",
     isActive: true,
     createdAt: new Date().toISOString(),
@@ -37,6 +40,7 @@ export const STAFF_STORE: StaffMember[] = [
     clerkUserId: "user_kitchen_chef_amit",
     name: "Chef Amit",
     phone: "+919876543212",
+    email: "kitchen@cheezydipcafe.com",
     role: "kitchen",
     isActive: true,
     createdAt: new Date().toISOString(),
@@ -55,14 +59,21 @@ export function getAllStaffMembers(): StaffMember[] {
   return [...STAFF_STORE];
 }
 
-export function findStaffByPhoneOrId(identifier: string): StaffMember | undefined {
+export function findStaffByIdentifier(identifier: string): StaffMember | undefined {
   if (!identifier) return undefined;
+  const target = identifier.trim().toLowerCase();
 
   // Match by Clerk User ID or staff record ID
   const byId = STAFF_STORE.find(
     (s) => s.id === identifier || (s.clerkUserId && s.clerkUserId === identifier)
   );
   if (byId) return byId;
+
+  // Match by email
+  const byEmail = STAFF_STORE.find(
+    (s) => s.email && s.email.toLowerCase() === target
+  );
+  if (byEmail) return byEmail;
 
   // Match by normalized phone
   const clean = normalizePhone(identifier);
@@ -73,16 +84,28 @@ export function findStaffByPhoneOrId(identifier: string): StaffMember | undefine
   return undefined;
 }
 
+// Backwards-compatible alias
+export const findStaffByPhoneOrId = findStaffByIdentifier;
+
 export function addStaffMemberRecord(input: {
   name: string;
   phone: string;
+  email?: string;
   role: StaffRole;
 }): StaffMember {
   const normalized = normalizePhone(input.phone);
-  const existing = STAFF_STORE.find((s) => normalizePhone(s.phone) === normalized);
+  const cleanEmail = input.email ? input.email.trim().toLowerCase() : undefined;
+
+  const existing = STAFF_STORE.find((s) => {
+    if (cleanEmail && s.email && s.email.toLowerCase() === cleanEmail) return true;
+    if (normalized.length >= 10 && normalizePhone(s.phone) === normalized) return true;
+    return false;
+  });
+
   if (existing) {
     existing.role = input.role;
     existing.name = input.name;
+    if (cleanEmail) existing.email = cleanEmail;
     existing.isActive = true;
     return existing;
   }
@@ -91,6 +114,7 @@ export function addStaffMemberRecord(input: {
     id: `staff_${crypto.randomBytes(4).toString("hex")}`,
     name: input.name,
     phone: input.phone.startsWith("+") ? input.phone : `+91${normalized}`,
+    email: cleanEmail,
     role: input.role,
     isActive: true,
     createdAt: new Date().toISOString(),

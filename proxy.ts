@@ -6,7 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/menu(.*)",
   "/t/(.*)",
   "/sign-in(.*)",
-  "/staff(.*)",
+  "/sign-up(.*)",
   "/terms(.*)",
   "/privacy(.*)",
   "/refund-policy(.*)",
@@ -18,6 +18,15 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const host = req.headers.get("host") || "";
+  const isSubdomainAdmin = host.startsWith("admin.") || host.startsWith("admin-");
+
+  // If visiting the root of admin subdomain, rewrite directly to /admin
+  if (isSubdomainAdmin && req.nextUrl.pathname === "/") {
+    const adminUrl = new URL("/admin", req.url);
+    return NextResponse.rewrite(adminUrl);
+  }
+
   if (process.env.CLERK_SECRET_KEY) {
     if (!isPublicRoute(req)) {
       await auth.protect();

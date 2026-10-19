@@ -25,6 +25,9 @@ export const PlaceOrderSchema = z.object({
       line1: z.string().min(3),
       area: z.string().min(1),
       pincode: z.string().length(6),
+      latitude: z.number().optional(),
+      longitude: z.number().optional(),
+      googleMapsUrl: z.string().optional(),
     })
     .optional(),
   paymentMethod: z.enum(["pay_at_counter", "razorpay"]),

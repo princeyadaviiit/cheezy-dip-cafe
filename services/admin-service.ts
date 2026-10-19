@@ -128,20 +128,15 @@ export async function getStaffList() {
 export async function addStaffMember(input: {
   name: string;
   phone: string;
+  email?: string;
   role: StaffRole;
 }) {
-  const staff = await requireStaffAuth(["admin", "owner"]);
-  if (staff.role !== "owner") {
-    throw new Error("UNAUTHORIZED: Only the cafe owner can add staff members.");
-  }
+  await requireStaffAuth(["admin", "owner"]);
   return addStaffMemberRecord(input);
 }
 
 export async function toggleStaffStatus(staffId: string) {
-  const staff = await requireStaffAuth(["admin", "owner"]);
-  if (staff.role !== "owner") {
-    throw new Error("UNAUTHORIZED: Only the cafe owner can modify staff status.");
-  }
+  await requireStaffAuth(["admin", "owner"]);
   return toggleStaffMemberActive(staffId);
 }
 
@@ -166,15 +161,19 @@ export async function getCurrentStaffStatus() {
       isAuthenticated: false,
       userId: null,
       phone: null,
+      email: null,
+      name: null,
       role: null,
     };
   }
 
-  const role = await getStaffRole(session.userId, session.phone);
+  const role = await getStaffRole(session.userId, session.phone, session.email);
   return {
     isAuthenticated: true,
     userId: session.userId,
     phone: session.phone || null,
+    email: session.email || null,
+    name: session.name || null,
     role: role || null,
   };
 }

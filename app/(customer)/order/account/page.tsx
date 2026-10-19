@@ -40,7 +40,7 @@ export default function CustomerAccountPage() {
       <div>
         <h1 className="text-xl font-extrabold font-display text-[var(--text)]">Your Account</h1>
         <p className="text-xs text-[var(--text-muted)] mt-0.5">
-          Manage your profile, active sessions, and access staff tools.
+          Manage your customer profile and view order history.
         </p>
       </div>
 
@@ -97,47 +97,6 @@ export default function CustomerAccountPage() {
           </div>
         </div>
 
-        {/* Staff Tools Access (Highlighted if user has staff role or wants to access staff hub) */}
-        <div className="p-4 rounded-[var(--r-card)] bg-gradient-to-br from-[var(--brand-primary)]/10 via-[var(--bg-raised)] to-[var(--bg-raised)] border border-[var(--brand-primary)]/30 space-y-3">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--brand-primary)] uppercase tracking-wider">
-                <ShieldCheck className="w-4 h-4" />
-                Staff Operations Hub
-              </div>
-              <p className="text-xs text-[var(--text)] mt-1 font-medium">
-                Access Kitchen Display System (KDS) & Admin Dashboard
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <Link
-              href="/kitchen"
-              className="p-2.5 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] hover:border-[var(--brand-primary)] text-center transition-all shadow-2xs group"
-            >
-              <p className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--brand-primary)]">
-                🍳 Kitchen KDS
-              </p>
-              <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Live order queue</p>
-            </Link>
-            <Link
-              href="/admin"
-              className="p-2.5 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] hover:border-[var(--brand-primary)] text-center transition-all shadow-2xs group"
-            >
-              <p className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--brand-primary)]">
-                🛡️ Admin Panel
-              </p>
-              <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Reports & settings</p>
-            </Link>
-          </div>
-          <Link
-            href="/staff"
-            className="flex items-center justify-between text-xs font-semibold text-[var(--brand-primary)] pt-1 hover:underline"
-          >
-            <span>Open full Staff Portal & Role Switcher</span>
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
 
         {/* Quick Links Menu */}
         <div className="divide-y divide-[var(--border)] rounded-[var(--r-card)] bg-[var(--bg-raised)] border border-[var(--border)] overflow-hidden">
@@ -197,12 +156,12 @@ export default function CustomerAccountPage() {
           <div className="space-y-1">
             <h2 className="text-base font-bold text-[var(--text)]">Not Logged In</h2>
             <p className="text-xs text-[var(--text-muted)] max-w-xs mx-auto">
-              Please sign in with your verified mobile number to view and manage your account, track orders, or access staff tools.
+              Please sign in to view and manage your account and track your orders.
             </p>
           </div>
           <Link href="/sign-in?redirect_url=/order/account">
             <Button variant="primary" className="min-h-[44px]">
-              Sign In with Mobile OTP
+              Sign In to Your Account
             </Button>
           </Link>
         </div>
