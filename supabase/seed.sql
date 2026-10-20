@@ -10,7 +10,7 @@ INSERT INTO public.cafe_settings (key, value) VALUES
 ('delivery_fee_minor', '3000'::jsonb), -- ₹30 delivery fee
 ('free_delivery_threshold_minor', '30000'::jsonb), -- Free delivery above ₹300
 ('min_delivery_order_minor', '15000'::jsonb), -- Minimum ₹150 for delivery
-('operating_hours', '{"open": "10:00", "close": "23:00"}'::jsonb),
+('operating_hours', '{"open": "09:00", "close": "21:00"}'::jsonb),
 ('cafe_info', '{"name": "Cheezy dip cafe", "phone": "+918696321018", "address": "Shop 4, Lane 2, Near Raja Park Market, Jaipur, RJ 302004"}'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 

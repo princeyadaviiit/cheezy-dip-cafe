@@ -28,7 +28,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
   const cafeStatus = await getPublicCafeStatus();
   if (!cafeStatus.isOpen) {
     throw new Error(
-      "KITCHEN_CLOSED: Cheezy Dip Cafe kitchen is currently CLOSED. We are not accepting orders right now. The kitchen will reopen soon!"
+      "KITCHEN_CLOSED: Cheezy Dip Cafe kitchen is currently CLOSED. Orders are allowed from 9:00 AM to 9:00 PM only. The kitchen will reopen at 9:00 AM!"
     );
   }
   if (input.orderType === "delivery" && !cafeStatus.deliveryEnabled) {

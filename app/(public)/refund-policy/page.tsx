@@ -54,7 +54,7 @@ export default function RefundPolicyPage() {
         <h2 className="text-sm font-bold text-[var(--text)]">4. Dispute & Escalation Contact</h2>
         <div className="p-3.5 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] space-y-1 text-xs shadow-xs">
           <p className="text-[var(--text)] font-semibold">Customer Support Desk</p>
-          <p className="text-[var(--text-muted)]">Helpline: <span className="text-[var(--text)] font-mono font-bold">+91 86963 21018</span> (10 AM - 11 PM)</p>
+          <p className="text-[var(--text-muted)]">Helpline: <span className="text-[var(--text)] font-mono font-bold">+91 86963 21018</span> (9 AM - 9 PM)</p>
           <p className="text-[var(--text-muted)]">Email: <span className="text-[var(--brand-primary)]">support@cheezydipcafe.com</span></p>
         </div>
       </section>

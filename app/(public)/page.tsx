@@ -104,7 +104,7 @@ export default async function LandingPage() {
                   cafeStatus.isOpen ? "text-emerald-400" : "text-red-400 font-bold"
                 }`}
               >
-                {cafeStatus.isOpen ? "Open Now • Kitchen Active" : "Kitchen Closed (Opens 10 AM)"}
+                {cafeStatus.isOpen ? "Open Now • Kitchen Active" : "Kitchen Closed (Opens 9 AM)"}
               </span>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default async function LandingPage() {
               </h3>
               <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
                 {cafeStatus.statusMessage ||
-                  "Cheezy Dip Cafe kitchen closes at 11:00 PM and reopens fresh every day at 10:00 AM. Browse our full menu below!"}
+                  "Cheezy Dip Cafe accepts orders from 9:00 AM to 9:00 PM daily and reopens fresh every day at 9:00 AM. Browse our full menu below!"}
               </p>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default async function LandingPage() {
             <Clock className="w-4 h-4 text-[var(--brand-primary)] shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-[var(--text)]">Opening Hours</p>
-              <p className="text-[var(--text-muted)]">Monday – Sunday: 10:00 AM – 11:00 PM</p>
+              <p className="text-[var(--text-muted)]">Monday – Sunday: 9:00 AM – 9:00 PM</p>
               <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Dine-in & Delivery active</p>
             </div>
           </div>

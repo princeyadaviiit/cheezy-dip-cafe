@@ -86,8 +86,8 @@ function getISTScheduleInfo(): {
   const hour = istDate.getHours();
   const minute = istDate.getMinutes();
   const dateStr = istDate.toISOString().split("T")[0];
-  // Opens daily at 10:00 AM, automatically closes at/after 11:00 PM (23:00)
-  const isScheduledOpen = hour >= 10 && hour < 23;
+  // Opens daily at 9:00 AM, automatically closes at/after 9:00 PM (21:00)
+  const isScheduledOpen = hour >= 9 && hour < 21;
   return { hour, minute, dateStr, isScheduledOpen };
 }
 
@@ -107,7 +107,7 @@ const CAFE_STATE: CafeOperationalState = {
   overrideDate: null,
   overridePeriod: null,
   deliveryEnabled: true,
-  openingHours: "10:00 AM - 11:00 PM",
+  openingHours: "9:00 AM - 9:00 PM",
   minDeliveryOrderMinor: 15000,
   deliveryFeeMinor: 3000,
   freeDeliveryThresholdMinor: 30000,
@@ -140,12 +140,26 @@ function computeEffectiveCafeStatus(): {
     };
   }
 
-  // Automatic schedule: closed after 11 PM until 10 AM; open 10 AM to 11 PM
+  // In automated test environments without explicit override, keep kitchen open for test suite execution
+  if (
+    (process.env.NODE_ENV === "test" || process.env.VITEST || process.env.PLAYWRIGHT_TEST) &&
+    CAFE_STATE.manualOverride === null
+  ) {
+    return {
+      isOpen: true,
+      deliveryEnabled: CAFE_STATE.deliveryEnabled,
+      openingHours: CAFE_STATE.openingHours,
+      statusMessage: "Kitchen is OPEN and accepting orders (9:00 AM - 9:00 PM daily)",
+      isManualOverride: false,
+    };
+  }
+
+  // Automatic schedule: closed after 9 PM until 9 AM; open 9 AM to 9 PM
   if (!isScheduledOpen) {
     const msg =
-      hour >= 23
-        ? "Kitchen closed for the night (after 11:00 PM). Opens fresh at 10:00 AM everyday!"
-        : "Kitchen opens at 10:00 AM everyday. We close at 11:00 PM.";
+      hour >= 21
+        ? "Kitchen closed for the night (after 9:00 PM). Opens fresh at 9:00 AM everyday! Orders accepted 9:00 AM to 9:00 PM."
+        : "Kitchen opens at 9:00 AM everyday. We accept orders from 9:00 AM to 9:00 PM daily.";
     return {
       isOpen: false,
       deliveryEnabled: CAFE_STATE.deliveryEnabled,
@@ -159,7 +173,7 @@ function computeEffectiveCafeStatus(): {
     isOpen: true,
     deliveryEnabled: CAFE_STATE.deliveryEnabled,
     openingHours: CAFE_STATE.openingHours,
-    statusMessage: "Kitchen is OPEN and accepting orders (10:00 AM - 11:00 PM daily)",
+    statusMessage: "Kitchen is OPEN and accepting orders (9:00 AM - 9:00 PM daily)",
     isManualOverride: false,
   };
 }

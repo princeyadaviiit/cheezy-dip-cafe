@@ -43,7 +43,7 @@ export default function ContactPage() {
             >
               +91 86963 21018
             </a>
-            <p className="text-[11px] text-[var(--text-muted)]">Available daily from 10:00 AM to 11:00 PM</p>
+            <p className="text-[11px] text-[var(--text-muted)]">Available daily from 9:00 AM to 9:00 PM</p>
           </div>
         </div>
 
@@ -62,7 +62,7 @@ export default function ContactPage() {
           <Clock className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
             <h3 className="font-bold text-[var(--text)] text-sm">Kitchen Timings</h3>
-            <p className="text-[var(--text-muted)]">Monday - Sunday: <strong className="text-[var(--text)]">10:00 AM – 11:00 PM</strong></p>
+            <p className="text-[var(--text-muted)]">Monday - Sunday: <strong className="text-[var(--text)]">9:00 AM – 9:00 PM</strong></p>
             <p className="text-[11px] text-[var(--text-muted)]">Open 7 days a week for dine-in & delivery</p>
           </div>
         </div>

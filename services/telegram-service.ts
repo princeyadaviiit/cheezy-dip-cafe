@@ -228,8 +228,8 @@ export async function handleTelegramWebhook(update: any): Promise<{ success: boo
         const msgText =
           `🍳 <b>Kitchen Operational Status</b>\n\n` +
           `• <b>Current Status:</b> ${statusIcon}\n` +
-          `• <b>Schedule:</b> 10:00 AM - 11:00 PM daily\n` +
-          `• <b>Night Rule:</b> Automatically closed after 11:00 PM\n` +
+          `• <b>Schedule:</b> 9:00 AM - 9:00 PM daily\n` +
+          `• <b>Night Rule:</b> Automatically closed after 9:00 PM\n` +
           `• <b>Updated by:</b> Admin Telegram ID <code>${fromId}</code>\n\n` +
           `Tap below to toggle kitchen operational status anytime:`;
 
@@ -424,7 +424,7 @@ export async function handleTelegramWebhook(update: any): Promise<{ success: boo
         `🍳 <b>Kitchen Operational Status</b>\n\n` +
         `• <b>Status:</b> ${statusIcon}\n` +
         `• <b>Schedule:</b> ${status.openingHours} daily\n` +
-        `• <b>Night Rule:</b> Automatically closed after 11:00 PM\n` +
+        `• <b>Night Rule:</b> Automatically closed after 9:00 PM\n` +
         `• <b>Details:</b> ${status.statusMessage}\n\n` +
         `Tap below to toggle kitchen operational status anytime:`;
 

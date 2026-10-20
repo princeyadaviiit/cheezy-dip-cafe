@@ -131,7 +131,7 @@ export default function AdminPage() {
   }>({
     isOpen: true,
     deliveryEnabled: true,
-    openingHours: "10:00 AM - 11:00 PM",
+    openingHours: "9:00 AM - 9:00 PM",
     deliveryFeeMinor: 3000,
   });
   const [tables, setTables] = useState<

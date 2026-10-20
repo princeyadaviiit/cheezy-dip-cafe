@@ -125,7 +125,7 @@ export default function CheckoutPage() {
 
     // Verify Kitchen Status
     if (!cafeStatus.isOpen) {
-      setErrorMessage("Cheezy Dip Cafe kitchen is currently CLOSED. We are not accepting orders right now. The kitchen will reopen soon!");
+      setErrorMessage("Cheezy Dip Cafe kitchen is currently CLOSED. Orders are allowed from 9:00 AM to 9:00 PM daily. The kitchen will reopen at 9:00 AM!");
       setIsSubmitting(false);
       return;
     }

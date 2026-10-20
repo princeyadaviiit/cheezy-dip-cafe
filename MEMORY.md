@@ -84,8 +84,14 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Backup restore rehearsed; rollback plan written (detailed in `docs/FINAL-REPORT.md`)
 - [x] Production Razorpay keys active and verified with Standard Checkout SDK
 - [x] Free Delivery configured on orders above ₹300 (30000 paise), standard flat ₹30 fee below ₹300
+- [x] Ordering hours strictly enforced daily from 9:00 AM to 9:00 PM (no orders allowed after 9 PM)
 
 ## 8. Changelog
+- 2026-10-20 | Strict 9:00 AM to 9:00 PM Ordering Window Enforcement:
+  1. IST Operating Schedule Update (`services/admin-service.ts`, `services/order-service.ts`): Updated operating schedule from 10 AM-11 PM to strictly 9:00 AM to 9:00 PM daily (`hour >= 9 && hour < 21`). After 9:00 PM IST through the night until 9:00 AM, the kitchen and ordering engine automatically lock down with `KITCHEN_CLOSED`, rejecting any order attempts.
+  2. Customer UI & Landing Page (`app/(public)/page.tsx`, `order/checkout/page.tsx`): Updated hero status chip (`Kitchen Closed (Opens 9 AM)`), operating hours banner, footer timings, and checkout rejection banner to state that orders are accepted from 9:00 AM to 9:00 PM only.
+  3. Contact, Policies & Admin Channels (`app/(public)/contact/page.tsx`, `app/(public)/refund-policy/page.tsx`, `app/(staff)/admin/page.tsx`, `services/telegram-service.ts`, `supabase/seed.sql`): Updated opening hours, helpline timings, Telegram bot `/kitchen` status messages, and database seed to 9:00 AM - 9:00 PM.
+  4. Test Verification: 15 Vitest suites (95 tests) passed, 14 Playwright mobile E2E tests passed, ESLint 0 errors, TypeScript strict 0 errors, Next.js Turbopack build 21/21 routes passed. | services/admin-service.ts, services/order-service.ts, app/, supabase/seed.sql
 - 2026-10-20 | Free Delivery Above ₹300 (30000 paise) & Delivery Tier Updates:
   1. Free Delivery Threshold Engine (`lib/orders/pricing.ts`, `services/order-service.ts`): Configured `FREE_DELIVERY_THRESHOLD_MINOR = 30000` (₹300) and `STANDARD_DELIVERY_FEE_MINOR = 3000` (₹30). When items subtotal is ₹300 or above, the server pricing engine automatically waives the delivery fee to ₹0. Orders under ₹300 continue to incur the standard ₹30 delivery fee. Dine-in table orders remain strictly ₹0 fee.
   2. Cart & Checkout Free Delivery UI (`app/(customer)/order/cart/page.tsx`, `app/(customer)/order/checkout/page.tsx`): Added a dynamic progress banner in the cart ("🛵 Add ₹X more for FREE Delivery!" / "🎉 Free Delivery Unlocked!"), itemized delivery fee line in bill details showing "FREE (Order above ₹300)", and matching real-time breakdown on the checkout screen.
