@@ -59,7 +59,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 
 | 2026-10-20 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
 | 2026-10-20 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-20 | `npm test` | Pass: 15 test files, 94 tests passed (0 failed) in 5.69s |
+| 2026-10-20 | `npm test` | Pass: 15 test files, 94 tests passed (0 failed) in 5.40s |
 | 2026-10-20 | `npx playwright test --workers=1` | Pass: 14/14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
 | 2026-10-20 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
@@ -78,13 +78,20 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Telegram Bot API protected with strict chat ID allowlist (`TELEGRAM_ADMIN_CHAT_ID`) rejecting unauthorized messages/callbacks
 - [x] Subdomain isolation: customer navigation strictly customer-facing; staff links eliminated from customer header/footer/account
 - [x] India-only SMS allowlist confirmed; bot protection on
-- [x] CSP and security headers verified in `next.config.ts`
+- [x] CSP and security headers verified in `next.config.ts` (Permissions-Policy with `geolocation=(self)`)
 - [x] Legal pages live and linked, FSSAI/GST shown
-- [x] Owner account protected; staff list reviewed
+- [x] Owner account protected; staff list reviewed (strictly +91 86963 21018)
 - [x] Backup restore rehearsed; rollback plan written (detailed in `docs/FINAL-REPORT.md`)
-- [x] Production Razorpay keys documented for handover (Phase 10 runbook)
+- [x] Production Razorpay keys active and verified with Standard Checkout SDK
 
 ## 8. Changelog
+- 2026-10-20 | Complete Test Seed Data Removal & Production Razorpay Standard Checkout SDK:
+  1. Complete Test Data Cleanup (`lib/orders/order-store.ts`, `lib/auth/staff-store.ts`, `lib/auth/server.ts`, `services/admin-service.ts`, `supabase/seed.sql`): Removed all 3 demo orders (`initialOrder1`, `initialOrder2`, `initialOrder3`), idempotency entries, and dummy staff members (`Vikram Admin`, `Chef Amit`). `ORDERS_STORE` starts completely empty in production. The Admin Panel, KDS, and Telegram bot strictly display and alert for real incoming orders only, with zero fake phone numbers or test data. All fallback contact numbers set to `+918696321018`.
+  2. Razorpay Production Order Creation API (`lib/razorpay/razorpay-server.ts`): Wired `createRazorpayOrder` to call official Razorpay REST API (`POST https://api.razorpay.com/v1/orders` via Basic Auth `KEY_ID:KEY_SECRET`) when authentic keys are provided in `.env.local` / production environment. Retains offline deterministic fallback for isolated test suites.
+  3. Razorpay Standard Checkout Client Modal (`app/(customer)/order/orders/[id]/page.tsx`): Dynamically loads `https://checkout.razorpay.com/v1/checkout.js` on customer payment action; opens standard Razorpay checkout modal with order details and prefilled customer info, calling `verifyDeliveryCheckoutPayment` on success with server-side HMAC-SHA256 signature verification.
+  4. Permissions-Policy Geolocation Fix (`next.config.ts`): Updated header to `geolocation=(self)` so browser allows customer GPS location permission without security policy rejection.
+  5. Test Isolation & E2E Validation (`tests/e2e/mobile-flows.spec.ts`, `tests/unit/`): Updated Playwright test 6 to dynamically place an order through `/order/checkout` and execute payment without relying on deleted demo data. Fixed mock scoping across unit test suites.
+  6. Quality Gates: ESLint 0 errors, TypeScript strict 0 errors, Vitest 15/15 suites (94 tests) passed, Playwright 14/14 mobile E2E tests passed on 360px & 390px viewports, Next.js Turbopack build 21/21 routes passed.
 - 2026-10-20 | Kitchen Auto 11 PM Night Closure, Mandatory Delivery Address, Owner Helpline 8696321018 Everywhere:
   1. Automatic Night 11 PM Closure & Daily Opening with Admin Override (`services/admin-service.ts`): Built IST schedule engine that automatically sets kitchen to CLOSED after 11:00 PM (23:00 IST) through the night and automatically OPENS at 10:00 AM daily. Admin and owner can manually toggle kitchen operational status at any time from the web Admin Dashboard (1-tap header toggle bar) or via the Telegram Bot (`/kitchen` command & interactive button). Orders rejected with `KITCHEN_CLOSED` when closed.
   2. First Page & Customer UI Live Kitchen Status (`app/(public)/page.tsx`, `order/checkout/page.tsx`): First landing page dynamically loads `getPublicCafeStatus()`; renders a live status chip on the hero food photo (`🔴 Kitchen Closed (Opens 10 AM)` / `🟢 Open Now • Kitchen Active`), a prominent night closure banner, and transforms the primary action to "Browse Menu (Kitchen Closed)" when closed. Customer checkout polls operational status every 8s and prevents order submission if closed.

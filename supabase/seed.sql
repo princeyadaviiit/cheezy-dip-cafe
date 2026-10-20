@@ -10,13 +10,13 @@ INSERT INTO public.cafe_settings (key, value) VALUES
 ('delivery_fee_minor', '3000'::jsonb), -- ₹30 delivery fee
 ('free_delivery_threshold_minor', '29900'::jsonb), -- Free delivery above ₹299
 ('min_delivery_order_minor', '14900'::jsonb), -- Minimum ₹149 for delivery
-('operating_hours', '{"open": "11:00", "close": "23:00"}'::jsonb),
-('cafe_info', '{"name": "Cheezy dip cafe", "phone": "+919876543210", "address": "Shop 4, Main Market Road, City Center"}'::jsonb)
+('operating_hours', '{"open": "10:00", "close": "23:00"}'::jsonb),
+('cafe_info', '{"name": "Cheezy dip cafe", "phone": "+918696321018", "address": "Shop 4, Lane 2, Near Raja Park Market, Jaipur, RJ 302004"}'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- 2. INITIAL OWNER SEED
 INSERT INTO public.staff_members (phone_e164, role, active, created_by)
-VALUES ('+919876543210', 'owner', true, 'system_bootstrap')
+VALUES ('+918696321018', 'owner', true, 'system_bootstrap')
 ON CONFLICT (phone_e164) DO NOTHING;
 
 -- 3. DINING TABLES (Permanent QRs)

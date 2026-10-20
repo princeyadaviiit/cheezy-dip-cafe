@@ -320,7 +320,7 @@ export async function getCurrentStaffStatus(): Promise<{
     return {
       isAuthenticated: true,
       userId: session?.userId || "admin_master_passkey",
-      phone: session?.phone || "+919876543210",
+      phone: session?.phone || "+918696321018",
       email: session?.email || "owner@cheezydipcafe.com",
       name: session?.name || "Cafe Administrator",
       role: "owner" as StaffRole,
@@ -366,7 +366,7 @@ export async function claimAdminRoleForCurrentUser(): Promise<{
   // Register or elevate the current user in the staff directory
   const registered = addStaffMemberRecord({
     name: session.name || "Cafe Administrator",
-    phone: session.phone || "+919876543299",
+    phone: session.phone || "+918696321018",
     email: session.email || undefined,
     role: "admin",
   });

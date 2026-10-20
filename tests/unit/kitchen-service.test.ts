@@ -13,11 +13,15 @@ import {
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 
 // Mock staff auth
-const mockRequireStaffAuth = vi.fn();
+const { mockRequireStaffAuth } = vi.hoisted(() => ({
+  mockRequireStaffAuth: vi.fn(),
+}));
+
 vi.mock("@/lib/auth/server", () => ({
   requireStaffAuth: () => mockRequireStaffAuth(),
   getAuthSession: vi.fn(),
   requireCustomerAuth: vi.fn(),
+  getStaffRole: vi.fn(),
 }));
 
 describe("Kitchen & Admin Services (Phase 6 State Machine & RBAC)", () => {

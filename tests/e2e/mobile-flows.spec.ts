@@ -109,19 +109,42 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
   test("Razorpay payment page loads for delivery order, processes payment, and verifies paid status", async ({
     page,
   }) => {
-    await page.goto("/order/orders/ord_demo_delivery");
+    // 1. Visit menu and add item to cart for delivery
+    await page.goto("/order");
+    const addBtn = page.getByRole("button", { name: "ADD +" }).first();
+    await expect(addBtn).toBeVisible();
+    await addBtn.click();
 
-    // Check order header
-    await expect(page.locator("body")).toContainText("CD-103");
+    const addToOrderBtn = page.getByRole("button", { name: /add to order/i });
+    await expect(addToOrderBtn).toBeVisible();
+    await addToOrderBtn.click();
 
-    const payBtn = page.getByRole("button", { name: /pay ₹280 via razorpay/i });
-    if (await payBtn.isVisible()) {
-      await expect(page.locator("body")).toContainText("Payment Required to Start Cooking");
-      await expect(page.locator("body")).toContainText("₹280");
-      await payBtn.click();
-    }
+    // 2. Proceed to checkout
+    await page.goto("/order/checkout");
+    await expect(page.locator("body")).toContainText("Delivery Details");
 
-    // After click or in subsequent runs, order is verified paid
+    // 3. Fill mandatory delivery details
+    await page.locator("#recipient-name").fill("Rahul Sharma");
+    await page.locator("#delivery-phone").fill("9876543210");
+    await page.locator("#delivery-address").fill("House 42, Lane 3");
+    await page.locator("#delivery-area").fill("Raja Park");
+    await page.locator("#delivery-pincode").fill("302004");
+
+    // 4. Submit order
+    const placeOrderBtn = page.getByRole("button", { name: /place delivery order/i });
+    await expect(placeOrderBtn).toBeVisible();
+    await placeOrderBtn.click();
+
+    // 5. Must redirect to tracking page with payment pending
+    await expect(page).toHaveURL(/\/order\/orders\/ord_/);
+    await expect(page.locator("body")).toContainText("Payment Required to Start Cooking");
+
+    // 6. Click Razorpay Pay button
+    const payBtn = page.getByRole("button", { name: /pay .* via razorpay/i });
+    await expect(payBtn).toBeVisible();
+    await payBtn.click();
+
+    // 7. Order is verified paid
     await expect(page.locator("body")).toContainText("Paid via Razorpay (Prepaid Verified)");
   });
 

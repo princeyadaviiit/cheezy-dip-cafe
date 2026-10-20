@@ -135,7 +135,7 @@ export function PhoneSignIn() {
               <Input
                 type="tel"
                 inputMode="tel"
-                placeholder="98765 43210"
+                placeholder="10-digit mobile number"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 autoFocus

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   checkAdminGateUnlocked,
   verifyAdminGatePasskey,
@@ -11,9 +11,28 @@ import {
 } from "@/services/admin-service";
 import { STAFF_STORE, findStaffByIdentifier } from "@/lib/auth/staff-store";
 
+vi.mock("@/lib/auth/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/server")>();
+  return {
+    ...actual,
+    getAuthSession: vi.fn().mockResolvedValue({
+      userId: "user_clerk_admin_test",
+      phone: "+918696321018",
+      email: "owner@cheezydipcafe.com",
+      name: "Cafe Administrator",
+      role: null,
+    }),
+  };
+});
+
 describe("Admin Gatekeeper & Multi-Stage Auth Flow", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
+    await lockAdminGate();
+  });
+
+  afterEach(async () => {
+    await lockAdminGate();
   });
 
   it("checkAdminGateUnlocked returns false when cookie is absent", async () => {

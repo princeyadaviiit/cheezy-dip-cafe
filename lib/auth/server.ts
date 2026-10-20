@@ -156,7 +156,7 @@ export async function requireStaffAuth(
       const session = await getAuthSession();
       return {
         userId: session?.userId || "admin_master_passkey",
-        phone: session?.phone || "+919876543210",
+        phone: session?.phone || "+918696321018",
         email: session?.email || "owner@cheezydipcafe.com",
         name: session?.name || "Cafe Administrator",
         role: "owner",

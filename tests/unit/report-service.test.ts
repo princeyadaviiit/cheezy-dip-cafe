@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getSalesReport } from "@/services/report-service";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 
@@ -13,8 +13,45 @@ vi.mock("@/lib/auth/server", () => ({
 }));
 
 describe("Sales Report Service", () => {
+  const testOrderId = "report_test_order_1";
+
   beforeEach(() => {
     vi.clearAllMocks();
+    const sampleOrder: OrderRecord = {
+      id: testOrderId,
+      orderNumber: "CD-RPT-1",
+      customerClerkId: "cust_test_1",
+      contactPhone: "+918696321018",
+      orderType: "dine_in",
+      orderStatus: "served",
+      paymentMethod: "pay_at_counter",
+      paymentStatus: "paid",
+      tableId: "tbl_1",
+      tableLabel: "Table 1",
+      items: [
+        {
+          menuItemId: "burger-crispy",
+          nameSnapshot: "Crispy Veg Burger",
+          unitPriceMinor: 12900,
+          quantity: 2,
+          modifiersSnapshot: [],
+          lineTotalMinor: 25800,
+        },
+      ],
+      subtotalMinor: 25800,
+      discountMinor: 0,
+      deliveryFeeMinor: 0,
+      taxMinor: 0,
+      totalMinor: 25800,
+      idempotencyKey: "idem_rpt_test_1",
+      placedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    ORDERS_STORE.set(testOrderId, sampleOrder);
+  });
+
+  afterEach(() => {
+    ORDERS_STORE.delete(testOrderId);
   });
 
   it("calculates sales metrics and channel split matching active orders", async () => {

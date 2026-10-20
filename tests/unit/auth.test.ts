@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   requireCustomerAuth,
   getStaffRole,
   requireStaffAuth,
 } from "@/lib/auth/server";
+import { lockAdminGate } from "@/lib/auth/admin-gate";
 
 describe("Server Auth Guard & Role Layer", () => {
+  beforeEach(async () => {
+    await lockAdminGate();
+  });
   it("requireCustomerAuth succeeds with authenticated user session", async () => {
     const user = await requireCustomerAuth();
     expect(user).toBeDefined();

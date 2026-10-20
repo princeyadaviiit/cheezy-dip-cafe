@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         <div className="p-3.5 rounded-xl bg-[var(--bg-raised)] border border-[var(--border)] text-xs space-y-1 shadow-xs">
           <p className="text-[var(--text)] font-semibold">Privacy Officer, Cheezy dip cafe</p>
           <p className="text-[var(--text-muted)]">Email: <span className="text-[var(--brand-primary)]">privacy@cheezydipcafe.com</span></p>
-          <p className="text-[var(--text-muted)]">Support Phone: +91 98765 43210</p>
+          <p className="text-[var(--text-muted)]">Support Phone: +91 86963 21018</p>
         </div>
       </section>
 

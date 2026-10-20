@@ -25,26 +25,6 @@ export const STAFF_STORE: StaffMember[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
   },
-  {
-    id: "s0000000-0000-0000-0000-000000000002",
-    clerkUserId: "user_admin_vikram",
-    name: "Vikram Admin",
-    phone: "+919876543211",
-    email: "admin@cheezydipcafe.com",
-    role: "admin",
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "s0000000-0000-0000-0000-000000000003",
-    clerkUserId: "user_kitchen_chef_amit",
-    name: "Chef Amit",
-    phone: "+919876543212",
-    email: "kitchen@cheezydipcafe.com",
-    role: "kitchen",
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
 ];
 
 /**

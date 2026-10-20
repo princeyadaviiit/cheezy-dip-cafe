@@ -24,8 +24,62 @@ export async function createRazorpayOrder(
     throw new Error("Razorpay order amount must be greater than zero.");
   }
 
-  // Generate deterministic test mode Razorpay order ID
-  const razorpayOrderId = `order_${crypto.createHash("sha256").update(`${internalOrderId}:${amountMinor}:${Date.now()}`).digest("hex").substring(0, 14)}`;
+  // Detect whether authentic production/test Razorpay API credentials are configured
+  const isRealRazorpayCredentials =
+    Boolean(KEY_ID) &&
+    Boolean(KEY_SECRET) &&
+    !KEY_ID.includes("cheezy_dip_default_key") &&
+    !KEY_SECRET.includes("cheezy_dip_razorpay_secret_test");
+
+  if (isRealRazorpayCredentials) {
+    try {
+      const basicAuth = Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString("base64");
+      const res = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${basicAuth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: amountMinor,
+          currency,
+          receipt: internalOrderId.slice(0, 40),
+          notes: {
+            internalOrderId,
+            cafe: "Cheezy Dip Cafe",
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        const description =
+          errJson?.error?.description || `Razorpay order creation failed with HTTP ${res.status}`;
+        throw new Error(`RAZORPAY_API_ERROR: ${description}`);
+      }
+
+      const rzpData = await res.json();
+      return {
+        razorpayOrderId: rzpData.id,
+        amountMinor: rzpData.amount,
+        currency: rzpData.currency || currency,
+        keyId: KEY_ID,
+      };
+    } catch (err: unknown) {
+      console.error("[Razorpay API] Order creation error:", err);
+      // In production environment with real keys configured, throw error instead of silent mock
+      if (process.env.NODE_ENV === "production") {
+        throw err;
+      }
+    }
+  }
+
+  // Deterministic fallback for dev/offline testing suites
+  const razorpayOrderId = `order_${crypto
+    .createHash("sha256")
+    .update(`${internalOrderId}:${amountMinor}:${Date.now()}`)
+    .digest("hex")
+    .substring(0, 14)}`;
 
   return {
     razorpayOrderId,

@@ -147,7 +147,7 @@ function StyleTileContent() {
           <div className="space-y-3">
             <Input
               label="Phone Number"
-              placeholder="+91 98765 43210"
+              placeholder="+91 86963 21018"
               type="tel"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}

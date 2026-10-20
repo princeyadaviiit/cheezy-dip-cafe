@@ -12,10 +12,27 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getOrderById, type OrderRecord } from "@/services/order-service";
-import { simulateTestModePayment } from "@/services/payment-service";
+import {
+  initiateDeliveryPayment,
+  verifyDeliveryCheckoutPayment,
+  simulateTestModePayment,
+} from "@/services/payment-service";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { BillModal } from "@/components/billing/bill-modal";
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
 
 const DINE_IN_STEPS = [
   { status: "placed", label: "Placed", desc: "Received by kitchen" },
@@ -91,14 +108,87 @@ export default function OrderTrackingPage({
     setIsPaying(true);
     setPaymentError("");
     try {
-      const res = await simulateTestModePayment(order.id);
-      if (res.success) {
-        await fetchOrder(true);
+      const rzpOrder = await initiateDeliveryPayment(order.id);
+      const isLoaded = await loadRazorpayScript();
+
+      const isRealKey =
+        Boolean(rzpOrder.keyId) &&
+        !rzpOrder.keyId.includes("cheezy_dip_default_key") &&
+        !rzpOrder.keyId.includes("rzp_test_placeholder");
+
+      const windowWithRazorpay = window as unknown as {
+        Razorpay?: new (options: Record<string, unknown>) => {
+          open: () => void;
+          on: (event: string, handler: (resp: { error?: { description?: string } }) => void) => void;
+        };
+      };
+
+      if (isLoaded && windowWithRazorpay.Razorpay && isRealKey) {
+        const options = {
+          key: rzpOrder.keyId,
+          amount: rzpOrder.amountMinor,
+          currency: rzpOrder.currency || "INR",
+          name: "Cheezy dip cafe",
+          description: `Order ${order.orderNumber}`,
+          image: "/brand/logo.png",
+          order_id: rzpOrder.razorpayOrderId,
+          handler: async function (response: {
+            razorpay_payment_id: string;
+            razorpay_order_id: string;
+            razorpay_signature: string;
+          }) {
+            try {
+              setIsPaying(true);
+              const res = await verifyDeliveryCheckoutPayment({
+                orderId: order.id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+              if (res.success) {
+                await fetchOrder(true);
+              }
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : "Payment verification failed. Please contact support.";
+              setPaymentError(msg);
+            } finally {
+              setIsPaying(false);
+            }
+          },
+          prefill: {
+            name: deliverySnap?.recipientName || "",
+            contact: deliverySnap?.phone || "",
+          },
+          theme: {
+            color: "#e65100",
+          },
+          modal: {
+            ondismiss: function () {
+              setIsPaying(false);
+            },
+          },
+        };
+
+        const rzp = new windowWithRazorpay.Razorpay(options);
+        rzp.on("payment.failed", function (resp) {
+          setPaymentError(resp?.error?.description || "Payment failed. Please try again.");
+          setIsPaying(false);
+        });
+        rzp.open();
+      } else {
+        // Fallback for offline environments or mock testing
+        const res = await simulateTestModePayment(order.id);
+        if (res.success) {
+          await fetchOrder(true);
+        }
+        setIsPaying(false);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Payment processing failed. Please try again.";
       setPaymentError(msg);
-    } finally {
       setIsPaying(false);
     }
   };
