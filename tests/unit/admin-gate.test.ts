@@ -9,7 +9,11 @@ import {
   claimAdminRoleForCurrentUser,
   getCurrentStaffStatus,
 } from "@/services/admin-service";
-import { STAFF_STORE, findStaffByIdentifier } from "@/lib/auth/staff-store";
+import {
+  STAFF_STORE,
+  findStaffByIdentifier,
+  resetStaffStore,
+} from "@/lib/auth/staff-store";
 
 vi.mock("@/lib/auth/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth/server")>();
@@ -28,10 +32,12 @@ vi.mock("@/lib/auth/server", async (importOriginal) => {
 describe("Admin Gatekeeper & Multi-Stage Auth Flow", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
+    resetStaffStore();
     await lockAdminGate();
   });
 
   afterEach(async () => {
+    resetStaffStore();
     await lockAdminGate();
   });
 

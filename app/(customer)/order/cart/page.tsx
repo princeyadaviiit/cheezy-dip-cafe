@@ -5,6 +5,10 @@ import Link from "next/link";
 import { ArrowLeft, Trash2, Plus, Minus, Utensils, ShoppingBag, Tag, CheckCircle2, AlertTriangle, WifiOff } from "lucide-react";
 import { useCart } from "@/lib/cart/cart-context";
 import { validateCoupon } from "@/lib/coupons/coupon-service";
+import {
+  FREE_DELIVERY_THRESHOLD_MINOR,
+  STANDARD_DELIVERY_FEE_MINOR,
+} from "@/lib/orders/pricing";
 import { Button } from "@/components/ui/button";
 
 export default function CartPage() {
@@ -84,7 +88,8 @@ export default function CartPage() {
     );
   }
 
-  const deliveryFeeMinor = orderType === "dine_in" ? 0 : 3000;
+  const isFreeDelivery = orderType === "delivery" && subtotalMinor >= FREE_DELIVERY_THRESHOLD_MINOR;
+  const deliveryFeeMinor = orderType === "dine_in" || isFreeDelivery ? 0 : STANDARD_DELIVERY_FEE_MINOR;
   const discountMinor = appliedCoupon ? appliedCoupon.discountMinor : 0;
   const grandTotalMinor = Math.max(0, subtotalMinor - discountMinor) + deliveryFeeMinor;
 
@@ -289,6 +294,28 @@ export default function CartPage() {
         )}
       </div>
 
+      {/* Free Delivery Banner for Delivery Orders */}
+      {orderType === "delivery" && !isFreeDelivery && (
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+          <span className="text-[var(--text)] font-semibold flex items-center gap-1.5">
+            🛵 Add ₹{Math.round((FREE_DELIVERY_THRESHOLD_MINOR - subtotalMinor) / 100)} more for FREE Delivery!
+          </span>
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded uppercase">
+            Above ₹300
+          </span>
+        </div>
+      )}
+      {orderType === "delivery" && isFreeDelivery && (
+        <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
+          <span className="flex items-center gap-1.5">
+            🎉 Free Delivery Unlocked!
+          </span>
+          <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded font-mono uppercase">
+            Orders Above ₹300
+          </span>
+        </div>
+      )}
+
       {/* Bill Breakdown */}
       <div className="p-4 bg-[var(--bg-raised)] rounded-2xl border border-[var(--border)] space-y-2 text-xs shadow-xs">
         <h4 className="font-bold text-[var(--text)] text-sm pb-1 border-b border-[var(--border)]">
@@ -306,7 +333,13 @@ export default function CartPage() {
         )}
         <div className="flex justify-between text-[var(--text-muted)]">
           <span>Delivery Partner Fee</span>
-          <span className="text-[var(--text)] font-semibold">{orderType === "dine_in" ? "FREE (Dine-in)" : "₹30"}</span>
+          <span className={`font-semibold ${orderType === "dine_in" || isFreeDelivery ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--text)]"}`}>
+            {orderType === "dine_in"
+              ? "FREE (Dine-in)"
+              : isFreeDelivery
+              ? "FREE (Order above ₹300)"
+              : "₹30"}
+          </span>
         </div>
         <div className="pt-2 border-t border-[var(--border)] flex justify-between items-center text-sm font-extrabold text-[var(--text)]">
           <span>To Pay</span>

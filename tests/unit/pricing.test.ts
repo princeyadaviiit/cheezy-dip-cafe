@@ -49,15 +49,28 @@ describe("Pricing Engine (Paise calculations & Tamper resistance)", () => {
     expect(result.totalMinor).toBe(4000);
   });
 
-  it("applies delivery fee for delivery orders", () => {
+  it("applies delivery fee for delivery orders below ₹300", () => {
     const result = calculateOrderPricing({
-      items: [{ menuItemId: "burger-crispy", quantity: 1 }],
+      items: [{ menuItemId: "burger-crispy", quantity: 1 }], // ₹40 < ₹300
       orderType: "delivery",
       deliveryFeeMinor: 3000,
     });
 
     expect(result.deliveryFeeMinor).toBe(3000);
-    expect(result.totalMinor).toBe(4000 + 3000); // 7000 paise
+    expect(result.totalMinor).toBe(4000 + 3000); // 7000 paise (₹70)
+  });
+
+  it("applies FREE delivery (₹0 delivery fee) for delivery orders of ₹300 and above", () => {
+    // 3 x Crispy Veg Burger (₹129 * 3 = ₹387 = 38700 paise >= 30000 paise)
+    const result = calculateOrderPricing({
+      items: [{ menuItemId: "burger-crispy-dip", quantity: 3 }],
+      orderType: "delivery",
+      deliveryFeeMinor: 3000, // Should be waived to 0
+    });
+
+    expect(result.subtotalMinor).toBe(38700);
+    expect(result.deliveryFeeMinor).toBe(0); // Free delivery applied!
+    expect(result.totalMinor).toBe(38700);
   });
 
   it("applies coupon discounts without exceeding subtotal", () => {

@@ -17,12 +17,13 @@ const { mockRequireStaffAuth } = vi.hoisted(() => ({
   mockRequireStaffAuth: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/server", () => ({
-  requireStaffAuth: () => mockRequireStaffAuth(),
-  getAuthSession: vi.fn(),
-  requireCustomerAuth: vi.fn(),
-  getStaffRole: vi.fn(),
-}));
+vi.mock("@/lib/auth/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/server")>();
+  return {
+    ...actual,
+    requireStaffAuth: () => mockRequireStaffAuth(),
+  };
+});
 
 describe("Kitchen & Admin Services (Phase 6 State Machine & RBAC)", () => {
   const testOrderId = "test_ord_kitchen_101";

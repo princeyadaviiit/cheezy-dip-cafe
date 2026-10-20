@@ -27,6 +27,20 @@ export const STAFF_STORE: StaffMember[] = [
   },
 ];
 
+export function resetStaffStore(): void {
+  STAFF_STORE.length = 0;
+  STAFF_STORE.push({
+    id: "s0000000-0000-0000-0000-000000000001",
+    clerkUserId: "user_owner_default",
+    name: "Cafe Owner",
+    phone: "+918696321018",
+    email: "owner@cheezydipcafe.com",
+    role: "owner",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /**
  * Normalizes phone numbers for reliable comparison (strips non-digits, keeps last 10 digits)
  */

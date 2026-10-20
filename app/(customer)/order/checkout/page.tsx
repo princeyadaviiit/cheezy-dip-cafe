@@ -7,6 +7,10 @@ import { ArrowLeft, Utensils, AlertTriangle, ShieldCheck, CheckCircle2, MapPin }
 import { useCart } from "@/lib/cart/cart-context";
 import { placeOrder } from "@/services/order-service";
 import { getPublicCafeStatus } from "@/services/admin-service";
+import {
+  FREE_DELIVERY_THRESHOLD_MINOR,
+  STANDARD_DELIVERY_FEE_MINOR,
+} from "@/lib/orders/pricing";
 import { Button } from "@/components/ui/button";
 
 export default function CheckoutPage() {
@@ -91,7 +95,8 @@ export default function CheckoutPage() {
 
   // Strict Dine-In Guard: Dine-in is ONLY possible if customer has scanned the QR code (tableLabel present)
   const isDineIn = Boolean(tableLabel);
-  const deliveryFeeMinor = isDineIn ? 0 : 3000;
+  const isFreeDelivery = !isDineIn && subtotalMinor >= FREE_DELIVERY_THRESHOLD_MINOR;
+  const deliveryFeeMinor = isDineIn || isFreeDelivery ? 0 : STANDARD_DELIVERY_FEE_MINOR;
   const grandTotalMinor = subtotalMinor + deliveryFeeMinor;
 
   // Proactively prompt for location on delivery checkout
@@ -497,6 +502,18 @@ export default function CheckoutPage() {
               </span>
             </div>
           ))}
+        </div>
+        <div className="pt-2 border-t border-[var(--border)] space-y-1">
+          <div className="flex justify-between items-center text-[var(--text-muted)] text-[11px]">
+            <span>Items Subtotal</span>
+            <span className="font-semibold text-[var(--text)]">₹{Math.round(subtotalMinor / 100)}</span>
+          </div>
+          <div className="flex justify-between items-center text-[var(--text-muted)] text-[11px]">
+            <span>Delivery Fee</span>
+            <span className={`font-semibold ${isFreeDelivery || isDineIn ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--text)]"}`}>
+              {isDineIn ? "FREE (Dine-in)" : isFreeDelivery ? "FREE (Order above ₹300)" : "₹30"}
+            </span>
+          </div>
         </div>
         <div className="pt-2 border-t border-[var(--border)] flex justify-between items-center font-extrabold text-sm text-[var(--text)]">
           <span>Total to Pay</span>

@@ -50,10 +50,11 @@ export default function DeliveryPolicyPage() {
       </section>
 
       <section className="space-y-2.5 text-xs leading-relaxed">
-        <h2 className="text-sm font-bold text-[var(--text)]">2. Delivery Charges & Minimum Order</h2>
+        <h2 className="text-sm font-bold text-[var(--text)]">2. Delivery Charges & Free Delivery</h2>
         <ul className="list-disc pl-5 space-y-1 text-[var(--text-muted)]">
           <li><strong className="text-[var(--text)]">Minimum Order:</strong> ₹150 subtotal for delivery.</li>
-          <li><strong className="text-[var(--text)]">Standard Delivery Fee:</strong> Flat ₹30 per delivery order.</li>
+          <li><strong className="text-[var(--text)]">Standard Delivery Fee:</strong> Flat ₹30 for delivery orders under ₹300.</li>
+          <li><strong className="text-emerald-600 dark:text-emerald-400 font-bold">FREE Delivery:</strong> ₹0 delivery fee on all orders of ₹300 and above!</li>
           <li><strong className="text-[var(--text)]">Dine-In Delivery Fee:</strong> ₹0 (Free service for table dine-in).</li>
         </ul>
       </section>

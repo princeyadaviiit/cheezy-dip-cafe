@@ -51,7 +51,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - **Styling**: Tailwind CSS v4 with CSS variables
 - **Auth**: Clerk Free Tier (`@clerk/nextjs` 7.9.17) + 30-day HMAC-SHA256 Master Gate Passkey
 - **Database**: Supabase PostgreSQL (`@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7)
-- **Test Runner**: Vitest 5.0.5 (94 tests passing across 15 suites)
+- **Test Runner**: Vitest 5.0.5 (95 tests passing across 15 suites)
 - **E2E Runner**: Playwright 1.58.2 (14 tests passing across mobile-360 & mobile-390)
 - **Linter**: ESLint 9.39.5 (0 errors, 0 warnings)
 
@@ -59,7 +59,7 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 
 | 2026-10-20 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
 | 2026-10-20 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-20 | `npm test` | Pass: 15 test files, 94 tests passed (0 failed) in 5.40s |
+| 2026-10-20 | `npm test` | Pass: 15 test files, 95 tests passed (0 failed) in 4.25s |
 | 2026-10-20 | `npx playwright test --workers=1` | Pass: 14/14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
 | 2026-10-20 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
@@ -83,8 +83,14 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Owner account protected; staff list reviewed (strictly +91 86963 21018)
 - [x] Backup restore rehearsed; rollback plan written (detailed in `docs/FINAL-REPORT.md`)
 - [x] Production Razorpay keys active and verified with Standard Checkout SDK
+- [x] Free Delivery configured on orders above ₹300 (30000 paise), standard flat ₹30 fee below ₹300
 
 ## 8. Changelog
+- 2026-10-20 | Free Delivery Above ₹300 (30000 paise) & Delivery Tier Updates:
+  1. Free Delivery Threshold Engine (`lib/orders/pricing.ts`, `services/order-service.ts`): Configured `FREE_DELIVERY_THRESHOLD_MINOR = 30000` (₹300) and `STANDARD_DELIVERY_FEE_MINOR = 3000` (₹30). When items subtotal is ₹300 or above, the server pricing engine automatically waives the delivery fee to ₹0. Orders under ₹300 continue to incur the standard ₹30 delivery fee. Dine-in table orders remain strictly ₹0 fee.
+  2. Cart & Checkout Free Delivery UI (`app/(customer)/order/cart/page.tsx`, `app/(customer)/order/checkout/page.tsx`): Added a dynamic progress banner in the cart ("🛵 Add ₹X more for FREE Delivery!" / "🎉 Free Delivery Unlocked!"), itemized delivery fee line in bill details showing "FREE (Order above ₹300)", and matching real-time breakdown on the checkout screen.
+  3. Delivery Policy & Database Seed (`app/(public)/delivery-policy/page.tsx`, `supabase/seed.sql`, `services/admin-service.ts`): Updated legal delivery policy to reflect flat ₹30 under ₹300, ₹0 Free Delivery for ₹300 and above, and updated `cafe_settings` seed with `free_delivery_threshold_minor: 30000`.
+  4. Test Verification: Added unit test in `tests/unit/pricing.test.ts` verifying ₹0 free delivery above ₹300 and ₹30 below ₹300; fixed test isolation in `kitchen-service.test.ts`, `auth.test.ts`, and `admin-gate.test.ts`. 15 Vitest suites (95 tests) passed, 14 Playwright mobile E2E tests passed, ESLint 0 errors, TypeScript 0 errors, Next.js Turbopack build 21/21 routes passed. | lib/orders/pricing.ts, services/, app/, supabase/seed.sql, tests/
 - 2026-10-20 | Complete Test Seed Data Removal & Production Razorpay Standard Checkout SDK:
   1. Complete Test Data Cleanup (`lib/orders/order-store.ts`, `lib/auth/staff-store.ts`, `lib/auth/server.ts`, `services/admin-service.ts`, `supabase/seed.sql`): Removed all 3 demo orders (`initialOrder1`, `initialOrder2`, `initialOrder3`), idempotency entries, and dummy staff members (`Vikram Admin`, `Chef Amit`). `ORDERS_STORE` starts completely empty in production. The Admin Panel, KDS, and Telegram bot strictly display and alert for real incoming orders only, with zero fake phone numbers or test data. All fallback contact numbers set to `+918696321018`.
   2. Razorpay Production Order Creation API (`lib/razorpay/razorpay-server.ts`): Wired `createRazorpayOrder` to call official Razorpay REST API (`POST https://api.razorpay.com/v1/orders` via Basic Auth `KEY_ID:KEY_SECRET`) when authentic keys are provided in `.env.local` / production environment. Retains offline deterministic fallback for isolated test suites.

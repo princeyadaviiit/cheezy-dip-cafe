@@ -2,7 +2,10 @@
 
 import { getAuthSession, requireCustomerAuth } from "@/lib/auth/server";
 import { getTableContext } from "@/lib/auth/table-cookie";
-import { calculateOrderPricing } from "@/lib/orders/pricing";
+import {
+  calculateOrderPricing,
+  STANDARD_DELIVERY_FEE_MINOR,
+} from "@/lib/orders/pricing";
 import {
   ORDERS_STORE,
   IDEMPOTENCY_STORE,
@@ -108,7 +111,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
   const pricing = calculateOrderPricing({
     items: input.items,
     orderType: input.orderType,
-    deliveryFeeMinor: input.orderType === "delivery" ? 3000 : 0,
+    deliveryFeeMinor: input.orderType === "delivery" ? STANDARD_DELIVERY_FEE_MINOR : 0,
   });
 
   // 5. Generate Order Record

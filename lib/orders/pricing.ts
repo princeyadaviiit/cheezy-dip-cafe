@@ -17,6 +17,9 @@ export interface CalculatedOrderItem {
   note?: string;
 }
 
+export const FREE_DELIVERY_THRESHOLD_MINOR = 30000; // ₹300: Free delivery on orders of ₹300 and above
+export const STANDARD_DELIVERY_FEE_MINOR = 3000; // ₹30: Standard delivery fee
+
 export interface PricingResult {
   items: CalculatedOrderItem[];
   subtotalMinor: number;
@@ -106,8 +109,19 @@ export function calculateOrderPricing({
     subtotalMinor += itemTotalMinor;
   }
 
-  // Enforce zero delivery fee for dine-in
-  const finalDeliveryFeeMinor = orderType === "dine_in" ? 0 : Math.max(0, deliveryFeeMinor);
+  // Delivery fee calculation:
+  // 1. Dine-in is strictly ₹0 (free table service).
+  // 2. Delivery is FREE (₹0) on orders of ₹300 and above (30000 paise).
+  // 3. Delivery orders below ₹300 incur standard ₹30 (3000 paise) fee.
+  let finalDeliveryFeeMinor = 0;
+  if (orderType === "delivery") {
+    if (subtotalMinor >= FREE_DELIVERY_THRESHOLD_MINOR) {
+      finalDeliveryFeeMinor = 0;
+    } else {
+      finalDeliveryFeeMinor = deliveryFeeMinor > 0 ? deliveryFeeMinor : STANDARD_DELIVERY_FEE_MINOR;
+    }
+  }
+
   const finalDiscountMinor = Math.min(subtotalMinor, Math.max(0, couponDiscountMinor));
   const taxMinor = 0; // Prices are tax-inclusive per OD-05
 

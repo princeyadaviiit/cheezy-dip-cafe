@@ -99,6 +99,7 @@ interface CafeOperationalState {
   openingHours: string;
   minDeliveryOrderMinor: number;
   deliveryFeeMinor: number;
+  freeDeliveryThresholdMinor: number;
 }
 
 const CAFE_STATE: CafeOperationalState = {
@@ -109,6 +110,7 @@ const CAFE_STATE: CafeOperationalState = {
   openingHours: "10:00 AM - 11:00 PM",
   minDeliveryOrderMinor: 15000,
   deliveryFeeMinor: 3000,
+  freeDeliveryThresholdMinor: 30000,
 };
 
 function computeEffectiveCafeStatus(): {
@@ -171,6 +173,7 @@ export async function getCafeSettings() {
     openingHours: current.openingHours,
     minDeliveryOrderMinor: CAFE_STATE.minDeliveryOrderMinor,
     deliveryFeeMinor: CAFE_STATE.deliveryFeeMinor,
+    freeDeliveryThresholdMinor: CAFE_STATE.freeDeliveryThresholdMinor,
     statusMessage: current.statusMessage,
     isManualOverride: current.isManualOverride,
   };
@@ -180,6 +183,8 @@ export async function getPublicCafeStatus(): Promise<{
   isOpen: boolean;
   deliveryEnabled: boolean;
   openingHours: string;
+  freeDeliveryThresholdMinor: number;
+  deliveryFeeMinor: number;
   statusMessage: string;
 }> {
   const current = computeEffectiveCafeStatus();
@@ -187,6 +192,8 @@ export async function getPublicCafeStatus(): Promise<{
     isOpen: current.isOpen,
     deliveryEnabled: current.deliveryEnabled,
     openingHours: current.openingHours,
+    freeDeliveryThresholdMinor: CAFE_STATE.freeDeliveryThresholdMinor,
+    deliveryFeeMinor: CAFE_STATE.deliveryFeeMinor,
     statusMessage: current.statusMessage,
   };
 }

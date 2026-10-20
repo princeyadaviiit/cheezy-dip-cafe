@@ -5,9 +5,11 @@ import {
   requireStaffAuth,
 } from "@/lib/auth/server";
 import { lockAdminGate } from "@/lib/auth/admin-gate";
+import { resetStaffStore } from "@/lib/auth/staff-store";
 
 describe("Server Auth Guard & Role Layer", () => {
   beforeEach(async () => {
+    resetStaffStore();
     await lockAdminGate();
   });
   it("requireCustomerAuth succeeds with authenticated user session", async () => {
