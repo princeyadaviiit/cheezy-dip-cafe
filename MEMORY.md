@@ -57,11 +57,10 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 
 ## 6. Commands run and results
 
-| 2026-10-20 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19 purity) |
-| 2026-10-20 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
-| 2026-10-20 | `npm test` | Pass: 15 test files, 95 tests passed (0 failed) in 4.25s |
-| 2026-10-20 | `npx playwright test --workers=1` | Pass: 14/14 mobile E2E tests passed (7 on mobile-360, 7 on mobile-390) |
-| 2026-10-20 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
+| 2026-10-24 | `npm run lint` | Pass: 0 errors, 0 warnings (ESLint 9 + React 19) |
+| 2026-10-24 | `npm run typecheck` | Pass: 0 errors (strict TypeScript) |
+| 2026-10-24 | `npm test` | Pass: 15 test files, 95 tests passed (0 failed) in 19.33s |
+| 2026-10-24 | `npm run build` | Pass: 21 static/dynamic routes compiled cleanly with Turbopack |
 
 ## 7. Security checklist progress
 - [x] RLS enabled on all tables; matrix in section 3 executed and passing (`tests/unit/authorization-matrix.test.ts`)
@@ -85,9 +84,16 @@ Cheezy dip cafe is a mobile-first single-cafe ordering web application. All clie
 - [x] Production Razorpay keys active and verified with Standard Checkout SDK
 - [x] Free Delivery configured on orders above ₹300 (30000 paise), standard flat ₹30 fee below ₹300
 - [x] Ordering hours strictly enforced daily from 9:00 AM to 9:00 PM (no orders allowed after 9 PM)
+- [x] Order Persistence & Global Multi-Chunk Architecture: Orders synced to Supabase Postgres, globalThis singleton registry, and disk fallback to eliminate ORDER_NOT_FOUND in production
 
 ## 8. Changelog
-- 2026-10-20 | Strict 9:00 AM to 9:00 PM Ordering Window Enforcement:
+- 2026-10-24 | Order Persistence to Supabase & Global Store Multi-Chunk Fix:
+  1. Root Cause Resolved: In Next.js production builds, Server Action files are bundled into isolated SSR chunks (e.g., checkout vs order tracking), each initializing separate in-memory maps. Previously, orders were not written to Supabase and new orders generated string IDs `ord_...` that failed Postgres UUID validation.
+  2. Multi-Chunk Singleton Registry (`lib/orders/order-store.ts`): Attached `ORDERS_STORE`, `IDEMPOTENCY_STORE`, `AUDIT_LOGS_STORE`, and `ORDER_RAZORPAY_MAP` to `globalThis`, guaranteeing shared state across all SSR and Server Action chunks within the Node.js process.
+  3. Production Order Persistence Layer (`lib/orders/order-persistence.ts`): Created persistence manager with `saveOrderRecord`, `updateOrderRecord`, `findOrderRecordById`, and `loadAllOrderRecords`. Automatically persists to Supabase `public.orders`, `public.order_items`, and `public.payments` when UUIDs are used, with seamless disk fallback in `.data/orders.json` and memory caching.
+  4. Order & Payment Services Hardening (`services/order-service.ts`, `services/payment-service.ts`, `lib/razorpay/razorpay-server.ts`): Generated standard RFC 4122 UUIDs with `crypto.randomUUID()`. Updated Razorpay server to pick up `NEXT_PUBLIC_RAZORPAY_KEY_ID` (live key `rzp_live_...`). Handled guest delivery payments so customers can pay directly without unauthorized Clerk session blocks.
+  5. Kitchen, Admin & Report Services Sync (`services/kitchen-service.ts`, `services/admin-service.ts`, `services/report-service.ts`): Updated to load orders through `loadAllOrderRecords()` and update via `updateOrderRecord()`.
+  6. Verification: 15 Vitest suites (95 tests) passed, ESLint 0 errors 0 warnings, TypeScript strict 0 errors, Next.js Turbopack build 21/21 routes passed cleanly. | lib/orders/, services/, tests/, vitest.config.ts
   1. IST Operating Schedule Update (`services/admin-service.ts`, `services/order-service.ts`): Updated operating schedule from 10 AM-11 PM to strictly 9:00 AM to 9:00 PM daily (`hour >= 9 && hour < 21`). After 9:00 PM IST through the night until 9:00 AM, the kitchen and ordering engine automatically lock down with `KITCHEN_CLOSED`, rejecting any order attempts.
   2. Customer UI & Landing Page (`app/(public)/page.tsx`, `order/checkout/page.tsx`): Updated hero status chip (`Kitchen Closed (Opens 9 AM)`), operating hours banner, footer timings, and checkout rejection banner to state that orders are accepted from 9:00 AM to 9:00 PM only.
   3. Contact, Policies & Admin Channels (`app/(public)/contact/page.tsx`, `app/(public)/refund-policy/page.tsx`, `app/(staff)/admin/page.tsx`, `services/telegram-service.ts`, `supabase/seed.sql`): Updated opening hours, helpline timings, Telegram bot `/kitchen` status messages, and database seed to 9:00 AM - 9:00 PM.

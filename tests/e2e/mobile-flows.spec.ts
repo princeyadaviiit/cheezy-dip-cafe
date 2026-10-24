@@ -136,7 +136,7 @@ test.describe("Mobile-First Customer Flows (360px & 390px)", () => {
     await placeOrderBtn.click();
 
     // 5. Must redirect to tracking page with payment pending
-    await expect(page).toHaveURL(/\/order\/orders\/ord_/);
+    await expect(page).toHaveURL(/\/order\/orders\/([0-9a-f-]{36}|ord_)/);
     await expect(page.locator("body")).toContainText("Payment Required to Start Cooking");
 
     // 6. Click Razorpay Pay button

@@ -1,7 +1,10 @@
 import "server-only";
 import crypto from "crypto";
 
-const KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_cheezy_dip_default_key";
+const KEY_ID =
+  process.env.RAZORPAY_KEY_ID ||
+  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+  "rzp_test_cheezy_dip_default_key";
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "cheezy_dip_razorpay_secret_test_32_bytes";
 const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "cheezy_dip_webhook_secret_test_32_bytes";
 

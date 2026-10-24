@@ -3,14 +3,18 @@ import { getSalesReport } from "@/services/report-service";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 
 // Mock staff auth
-vi.mock("@/lib/auth/server", () => ({
-  requireStaffAuth: vi.fn().mockResolvedValue({
-    userId: "staff_admin_test",
-    role: "admin",
-  }),
-  getAuthSession: vi.fn(),
-  requireCustomerAuth: vi.fn(),
-}));
+vi.mock("@/lib/auth/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/server")>();
+  return {
+    ...actual,
+    requireStaffAuth: vi.fn().mockResolvedValue({
+      userId: "staff_admin_test",
+      role: "admin",
+    }),
+    getAuthSession: vi.fn(),
+    requireCustomerAuth: vi.fn(),
+  };
+});
 
 describe("Sales Report Service", () => {
   const testOrderId = "report_test_order_1";

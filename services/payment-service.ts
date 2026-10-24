@@ -10,48 +10,62 @@ import {
 import {
   ORDERS_STORE,
   AUDIT_LOGS_STORE,
+  ORDER_RAZORPAY_MAP,
   type OrderRecord,
   type AuditLogEntry,
 } from "@/lib/orders/order-store";
+import {
+  findOrderRecordById,
+  updateOrderRecord,
+  loadAllOrderRecords,
+} from "@/lib/orders/order-persistence";
 import { sendTelegramOrderAlert } from "@/services/telegram-service";
 
 // Deduplication store for processed webhook payment IDs
 const PROCESSED_PAYMENTS: Set<string> = new Set();
 
-// Active payments mapping: internalOrderId -> razorpayOrderId
-const ORDER_RAZORPAY_MAP: Map<string, string> = new Map();
-
 /**
  * Initiate Razorpay checkout order on server for delivery order
  */
 export async function initiateDeliveryPayment(orderId: string) {
-  let user;
-  try {
-    user = await requireCustomerAuth();
-  } catch {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("UNAUTHORIZED: Please sign in to pay for this order.");
-    }
-  }
-
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
 
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
   }
 
-  if (user && order.customerClerkId !== user.userId) {
+  const isGuestOrder = order.customerClerkId.startsWith("guest_");
+  let user;
+  try {
+    user = await requireCustomerAuth();
+  } catch {
+    if (process.env.NODE_ENV === "production" && !isGuestOrder) {
+      throw new Error("UNAUTHORIZED: Please sign in to pay for this order.");
+    }
+  }
+
+  if (user && !isGuestOrder && order.customerClerkId !== user.userId) {
     throw new Error("UNAUTHORIZED: You do not own this order.");
   }
 
   if (order.orderStatus !== "pending_payment") {
+    if (order.paymentStatus === "paid" && order.orderStatus === "placed") {
+      return {
+        razorpayOrderId: order.razorpayOrderId || "",
+        amountMinor: order.totalMinor,
+        currency: "INR",
+        keyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
+      };
+    }
     throw new Error(
       `INVALID_PAYMENT_STATE: Cannot initiate payment for order in '${order.orderStatus}' status.`
     );
   }
 
   const rzpOrder = await createRazorpayOrder(order.id, order.totalMinor);
+  order.razorpayOrderId = rzpOrder.razorpayOrderId;
   ORDER_RAZORPAY_MAP.set(order.id, rzpOrder.razorpayOrderId);
+  await updateOrderRecord(order);
 
   return rzpOrder;
 }
@@ -79,7 +93,7 @@ export async function verifyDeliveryCheckoutPayment(params: {
   }
 
   // 2. Fetch order
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
   }
@@ -101,7 +115,7 @@ export async function verifyDeliveryCheckoutPayment(params: {
   order.razorpayOrderId = razorpayOrderId;
   order.razorpayPaymentId = razorpayPaymentId;
   order.updatedAt = new Date().toISOString();
-  ORDERS_STORE.set(order.id, order);
+  await updateOrderRecord(order);
 
   // Send realtime Telegram alert to admin bot
   sendTelegramOrderAlert(order).catch((err) =>
@@ -206,19 +220,23 @@ export async function processRazorpayWebhook(rawBody: string, signatureHeader: s
   let matchedOrder: OrderRecord | undefined;
   for (const [internalId, rzpId] of ORDER_RAZORPAY_MAP.entries()) {
     if (rzpId === razorpayOrderId) {
-      matchedOrder = ORDERS_STORE.get(internalId);
-      break;
+      const found = await findOrderRecordById(internalId);
+      if (found) {
+        matchedOrder = found;
+        break;
+      }
     }
   }
 
   // Fallback to internal_order_id in notes if available
   if (!matchedOrder && payment.notes?.internal_order_id) {
-    matchedOrder = ORDERS_STORE.get(payment.notes.internal_order_id);
+    matchedOrder = (await findOrderRecordById(payment.notes.internal_order_id)) || undefined;
   }
 
   if (!matchedOrder) {
-    // If not found in mapping, try matching order with same total in pending_payment
-    matchedOrder = Array.from(ORDERS_STORE.values()).find(
+    // If not found in mapping, try matching order with same total in pending_payment from all loaded orders
+    const all = await loadAllOrderRecords();
+    matchedOrder = all.find(
       (o) => o.orderStatus === "pending_payment" && o.totalMinor === capturedAmountMinor
     );
   }
@@ -237,8 +255,10 @@ export async function processRazorpayWebhook(rawBody: string, signatureHeader: s
   // 6. Transition order: pending_payment -> placed, mark paymentStatus = paid
   matchedOrder.paymentStatus = "paid";
   matchedOrder.orderStatus = "placed";
+  matchedOrder.razorpayOrderId = razorpayOrderId;
+  matchedOrder.razorpayPaymentId = paymentId;
   matchedOrder.updatedAt = new Date().toISOString();
-  ORDERS_STORE.set(matchedOrder.id, matchedOrder);
+  await updateOrderRecord(matchedOrder);
 
   // Send realtime Telegram alert to admin bot
   sendTelegramOrderAlert(matchedOrder).catch((err) =>
@@ -280,8 +300,9 @@ export async function processRazorpayWebhook(rawBody: string, signatureHeader: s
 export async function expireStaleDeliveryOrders(maxAgeMinutes = 15): Promise<number> {
   const cutoffTime = Date.now() - maxAgeMinutes * 60 * 1000;
   let expiredCount = 0;
+  const allOrders = await loadAllOrderRecords();
 
-  for (const order of ORDERS_STORE.values()) {
+  for (const order of allOrders) {
     if (
       order.orderType === "delivery" &&
       order.orderStatus === "pending_payment" &&
@@ -289,7 +310,7 @@ export async function expireStaleDeliveryOrders(maxAgeMinutes = 15): Promise<num
     ) {
       order.orderStatus = "expired";
       order.updatedAt = new Date().toISOString();
-      ORDERS_STORE.set(order.id, order);
+      await updateOrderRecord(order);
       expiredCount += 1;
 
       AUDIT_LOGS_STORE.push({
@@ -321,7 +342,7 @@ export async function processOrderRefund(
     throw new Error("UNAUTHORIZED: Only admin or owner can issue payment refunds.");
   }
 
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order '${orderId}' not found.`);
   }
@@ -338,7 +359,7 @@ export async function processOrderRefund(
   order.paymentStatus = "refunded";
   order.orderStatus = "cancelled";
   order.updatedAt = new Date().toISOString();
-  ORDERS_STORE.set(order.id, order);
+  await updateOrderRecord(order);
 
   // Record audit trail
   AUDIT_LOGS_STORE.push({

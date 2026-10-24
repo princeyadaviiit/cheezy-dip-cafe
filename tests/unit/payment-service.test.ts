@@ -27,11 +27,15 @@ import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
 // Mock staff & customer auth
 const mockRequireStaffAuth = vi.fn();
 const mockRequireCustomerAuth = vi.fn();
-vi.mock("@/lib/auth/server", () => ({
-  requireStaffAuth: () => mockRequireStaffAuth(),
-  getAuthSession: vi.fn(),
-  requireCustomerAuth: () => mockRequireCustomerAuth(),
-}));
+vi.mock("@/lib/auth/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/server")>();
+  return {
+    ...actual,
+    requireStaffAuth: () => mockRequireStaffAuth(),
+    getAuthSession: vi.fn(),
+    requireCustomerAuth: () => mockRequireCustomerAuth(),
+  };
+});
 
 describe("Delivery Area & Pincode Validation", () => {
   it("allows delivery for authorized pincode and sufficient order subtotal", () => {

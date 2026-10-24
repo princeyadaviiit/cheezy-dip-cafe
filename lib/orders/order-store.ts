@@ -49,14 +49,32 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
-// Global state stores (starts completely clean in production)
-export const ORDERS_STORE: Map<string, OrderRecord> = new Map();
-export const IDEMPOTENCY_STORE: Map<string, string> = new Map();
-export const AUDIT_LOGS_STORE: AuditLogEntry[] = [];
+// Global state stores attached to globalThis to ensure singletons across
+// all Next.js Server Action chunks and SSR modules in the Node.js process.
+declare global {
+  var __cheezy_orders_store__: Map<string, OrderRecord> | undefined;
+  var __cheezy_idempotency_store__: Map<string, string> | undefined;
+  var __cheezy_audit_logs_store__: AuditLogEntry[] | undefined;
+  var __cheezy_order_razorpay_map__: Map<string, string> | undefined;
+  var __cheezy_order_counter__: number | undefined;
+}
 
-let orderCounter = 100;
+export const ORDERS_STORE: Map<string, OrderRecord> =
+  globalThis.__cheezy_orders_store__ ?? (globalThis.__cheezy_orders_store__ = new Map());
+
+export const IDEMPOTENCY_STORE: Map<string, string> =
+  globalThis.__cheezy_idempotency_store__ ?? (globalThis.__cheezy_idempotency_store__ = new Map());
+
+export const AUDIT_LOGS_STORE: AuditLogEntry[] =
+  globalThis.__cheezy_audit_logs_store__ ?? (globalThis.__cheezy_audit_logs_store__ = []);
+
+export const ORDER_RAZORPAY_MAP: Map<string, string> =
+  globalThis.__cheezy_order_razorpay_map__ ?? (globalThis.__cheezy_order_razorpay_map__ = new Map());
 
 export function getNextOrderNumber(): string {
-  orderCounter += 1;
-  return `CD-${orderCounter}`;
+  if (globalThis.__cheezy_order_counter__ === undefined) {
+    globalThis.__cheezy_order_counter__ = 100;
+  }
+  globalThis.__cheezy_order_counter__ += 1;
+  return `CD-${globalThis.__cheezy_order_counter__}`;
 }

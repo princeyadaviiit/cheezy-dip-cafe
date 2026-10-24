@@ -9,6 +9,11 @@ import {
   type OrderRecord,
   type AuditLogEntry,
 } from "@/lib/orders/order-store";
+import {
+  findOrderRecordById,
+  updateOrderRecord,
+  loadAllOrderRecords,
+} from "@/lib/orders/order-persistence";
 
 /**
  * Get active orders for the Kitchen Display System (FIFO order)
@@ -17,8 +22,9 @@ export async function getKitchenOrders(): Promise<OrderRecord[]> {
   await requireStaffAuth();
 
   const activeStatuses: OrderStatus[] = ["placed", "accepted", "preparing", "ready"];
+  const allOrders = await loadAllOrderRecords();
 
-  return Array.from(ORDERS_STORE.values())
+  return allOrders
     .filter((order) => activeStatuses.includes(order.orderStatus))
     .sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime());
 }
@@ -31,7 +37,7 @@ export async function transitionOrderStatus(
   toStatus: OrderStatus
 ): Promise<OrderRecord> {
   const staff = await requireStaffAuth();
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
 
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
@@ -45,7 +51,7 @@ export async function transitionOrderStatus(
   // Update order record
   order.orderStatus = toStatus;
   order.updatedAt = new Date().toISOString();
-  ORDERS_STORE.set(orderId, order);
+  await updateOrderRecord(order);
 
   // Record immutable audit log entry
   const auditEntry: AuditLogEntry = {
@@ -74,7 +80,7 @@ export async function transitionOrderStatus(
  */
 export async function markOrderPaidAtCounter(orderId: string): Promise<OrderRecord> {
   const staff = await requireStaffAuth();
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
 
   if (!order) {
     throw new Error(`ORDER_NOT_FOUND: Order with ID '${orderId}' does not exist.`);
@@ -82,7 +88,7 @@ export async function markOrderPaidAtCounter(orderId: string): Promise<OrderReco
 
   order.paymentStatus = "paid";
   order.updatedAt = new Date().toISOString();
-  ORDERS_STORE.set(orderId, order);
+  await updateOrderRecord(order);
 
   // Record audit log entry
   const auditEntry: AuditLogEntry = {

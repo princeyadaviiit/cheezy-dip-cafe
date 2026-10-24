@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/staff-store";
 import { MENU_ITEMS, type MenuItem } from "@/lib/menu-data";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
+import { loadAllOrderRecords } from "@/lib/orders/order-persistence";
 import { type OrderStatus } from "@/components/ui/status-badge";
 
 // In-memory catalog availability overrides
@@ -36,9 +37,7 @@ const TABLES_STORE: Array<{
 export async function getAllAdminOrders(statusFilter?: OrderStatus): Promise<OrderRecord[]> {
   await requireStaffAuth();
 
-  const all = Array.from(ORDERS_STORE.values()).sort(
-    (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
-  );
+  const all = await loadAllOrderRecords();
 
   if (statusFilter) {
     return all.filter((ord) => ord.orderStatus === statusFilter);

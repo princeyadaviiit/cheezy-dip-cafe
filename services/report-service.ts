@@ -2,6 +2,7 @@
 
 import { requireStaffAuth } from "@/lib/auth/server";
 import { ORDERS_STORE, type OrderRecord } from "@/lib/orders/order-store";
+import { loadAllOrderRecords } from "@/lib/orders/order-persistence";
 
 export interface SalesReportSummary {
   timeframe: "today" | "week" | "month";
@@ -41,7 +42,8 @@ export async function getSalesReport(
       : now - 30 * 24 * 60 * 60 * 1000;
 
   // Filter orders in timeframe that are paid or active (excluding cancelled/expired)
-  const orders = Array.from(ORDERS_STORE.values()).filter((o) => {
+  const allOrders = await loadAllOrderRecords();
+  const orders = allOrders.filter((o) => {
     const placed = new Date(o.placedAt).getTime();
     const isFinishedOrActive =
       o.orderStatus !== "cancelled" && o.orderStatus !== "expired" && o.orderStatus !== "rejected";

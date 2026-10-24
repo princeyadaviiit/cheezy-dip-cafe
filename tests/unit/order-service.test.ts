@@ -2,18 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { placeOrder } from "@/services/order-service";
 
 // Mock customer auth
-vi.mock("@/lib/auth/server", () => ({
-  requireCustomerAuth: vi.fn().mockResolvedValue({
-    userId: "user_test_customer_123",
-    role: null,
-    phone: "+918696321018",
-  }),
-  getAuthSession: vi.fn().mockResolvedValue({
-    userId: "user_test_customer_123",
-    role: null,
-    phone: "+918696321018",
-  }),
-}));
+vi.mock("@/lib/auth/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/server")>();
+  return {
+    ...actual,
+    requireCustomerAuth: vi.fn().mockResolvedValue({
+      userId: "user_test_customer_123",
+      role: null,
+      phone: "+918696321018",
+    }),
+    getAuthSession: vi.fn().mockResolvedValue({
+      userId: "user_test_customer_123",
+      role: null,
+      phone: "+918696321018",
+    }),
+  };
+});
 
 // Mock table cookie helper
 const mockGetTableContext = vi.fn();

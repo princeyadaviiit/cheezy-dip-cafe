@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { getAuthSession, requireCustomerAuth } from "@/lib/auth/server";
 import { getTableContext } from "@/lib/auth/table-cookie";
 import {
@@ -12,6 +13,11 @@ import {
   getNextOrderNumber,
   type OrderRecord,
 } from "@/lib/orders/order-store";
+import {
+  saveOrderRecord,
+  findOrderRecordById,
+  loadAllOrderRecords,
+} from "@/lib/orders/order-persistence";
 
 export type { OrderRecord };
 
@@ -101,7 +107,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
   const idempotencyKeyCompound = `${customerClerkId}:${input.idempotencyKey}`;
   const existingOrderId = IDEMPOTENCY_STORE.get(idempotencyKeyCompound);
   if (existingOrderId) {
-    const existingOrder = ORDERS_STORE.get(existingOrderId);
+    const existingOrder = await findOrderRecordById(existingOrderId);
     if (existingOrder) {
       return existingOrder;
     }
@@ -116,7 +122,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
 
   // 5. Generate Order Record
   const orderNumber = getNextOrderNumber();
-  const orderId = `ord_${Math.random().toString(36).substring(2, 10)}`;
+  const orderId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   const deliverySnapshot =
@@ -148,7 +154,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
     updatedAt: now,
   };
 
-  ORDERS_STORE.set(orderId, orderRecord);
+  await saveOrderRecord(orderRecord);
   IDEMPOTENCY_STORE.set(idempotencyKeyCompound, orderId);
 
   // Send realtime Telegram alert to admin bot if order is immediately placed (dine-in)
@@ -163,7 +169,7 @@ export async function placeOrder(rawInput: PlaceOrderInput): Promise<OrderRecord
 
 export async function getOrderById(orderId: string): Promise<OrderRecord | null> {
   const session = await getAuthSession();
-  const order = ORDERS_STORE.get(orderId);
+  const order = await findOrderRecordById(orderId);
   if (!order) return null;
 
   // 1. Staff can view all orders
@@ -180,7 +186,8 @@ export async function getCustomerOrders(): Promise<OrderRecord[]> {
   if (!session?.userId) {
     return [];
   }
-  return Array.from(ORDERS_STORE.values()).filter(
+  const allOrders = await loadAllOrderRecords();
+  return allOrders.filter(
     (order) => order.customerClerkId === session.userId
   );
 }
